@@ -1,0 +1,93 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <Button
+        android:id="@+id/button_scl_window"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SCL window [sec]"
+        android:layout_marginTop="10dp"
+        android:layout_below="@+id/textView"
+        android:layout_alignParentStart="true"
+        android:layout_alignEnd="@+id/button_graph_history" />
+
+    <TextView
+        android:id="@+id/value_scl_window"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="22s"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:layout_alignBaseline="@+id/button_scl_window"
+        android:layout_alignBottom="@+id/button_scl_window"
+        android:layout_alignParentEnd="true" />
+
+    <Switch
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/adjust_scl"
+        android:checked="false"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="10dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:text="11s"
+        android:id="@+id/value_graph_history"
+        android:layout_alignBaseline="@+id/button_graph_history"
+        android:layout_alignBottom="@+id/button_graph_history"
+        android:layout_alignParentEnd="true" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Graph history [sec]"
+        android:id="@+id/button_graph_history"
+        android:layout_below="@+id/button_scl_window"
+        android:layout_alignParentStart="true" />
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:inputType="textPersonName"
+        android:text="Obimon group"
+        android:ems="10"
+        android:id="@+id/editObimonGroup"
+        android:layout_below="@+id/button_graph_history"
+        android:layout_alignParentEnd="true" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:text=" Adjust for SCL"
+        android:id="@+id/textView"
+        android:layout_alignBaseline="@+id/adjust_scl"
+        android:layout_alignBottom="@+id/adjust_scl"
+        android:layout_alignParentStart="true" />
+
+    <TextView
+        android:text="Group"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/textView7"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_alignBaseline="@+id/editObimonGroup"
+        android:layout_alignBottom="@+id/editObimonGroup"
+        android:layout_alignParentStart="true" />
+
+    <TextView
+        android:text="TextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/editObimonGroup"
+        android:layout_alignParentStart="true"
+        android:layout_marginTop="16dp"
+        android:id="@+id/ntpstatus"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium" />
+
+</RelativeLayout>
+
