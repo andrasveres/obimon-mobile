@@ -1,0 +1,65 @@
+Activity Resolver Table:
+  Non-Data Actions:
+      android.hardware.usb.action.USB_DEVICE_ATTACHED:
+        9d2dd35 com.obimon.obimon_mobile/.MyActivity
+      android.intent.action.MAIN:
+        9d2dd35 com.obimon.obimon_mobile/.MyActivity
+
+Key Set Manager:
+  [com.obimon.obimon_mobile]
+      Signing KeySets: 100
+
+Packages:
+  Package [com.obimon.obimon_mobile] (f43e39e):
+    userId=10190
+    pkg=Package{a2c85ca com.obimon.obimon_mobile}
+    codePath=/data/app/com.obimon.obimon_mobile-1
+    resourcePath=/data/app/com.obimon.obimon_mobile-1
+    legacyNativeLibraryDir=/data/app/com.obimon.obimon_mobile-1/lib
+    primaryCpuAbi=null
+    secondaryCpuAbi=null
+    nativeLibraryRootDir=/data/app/com.obimon.obimon_mobile-1/lib
+    nativeLibraryDir=/data/app/com.obimon.obimon_mobile-1/lib/arm
+    secondaryNativeLibraryDir=null
+    nativeLibraryRootRequiresIsa=true
+    dexMode=unknown
+    versionCode=14 targetSdk=23
+    versionName=2.8
+    splits=[base]
+    applicationInfo=ApplicationInfo{9f4b33b com.obimon.obimon_mobile}
+    flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    dataDir=/data/user/0/com.obimon.obimon_mobile
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    timeStamp=2017-01-03 19:23:41
+    firstInstallTime=2017-01-03 18:31:02
+    lastUpdateTime=2017-01-03 19:23:42
+    signatures=PackageSignatures{39d7e4c [66e7a58]}
+    installPermissionsFixed=true installStatus=1
+    pkgFlags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    requested permissions:
+      android.permission.BLUETOOTH_ADMIN
+      android.permission.BLUETOOTH
+      android.permission.INTERNET
+      android.permission.ACCESS_FINE_LOCATION
+      android.permission.WRITE_EXTERNAL_STORAGE
+      android.permission.READ_EXTERNAL_STORAGE
+    install permissions:
+      android.permission.BLUETOOTH, granted=true, flags=0x0
+      android.permission.INTERNET, granted=true, flags=0x0
+      android.permission.BLUETOOTH_ADMIN, granted=true, flags=0x0
+    User 0:  installed=true hidden=false stopped=false notLaunched=false enabled=0
+      gids=[3002, 3003, 3001]
+      Not granted runtime permissions:
+        android.permission.WRITE_EXTERNAL_STORAGE
+        android.permission.READ_EXTERNAL_STORAGE
+      runtime permissions:
+        android.permission.ACCESS_FINE_LOCATION, granted=true, flags=0x0
+mPackagesOnlyForOwnerUser:
+mComponentsOnlyForOwnerUser:
+mSkippingApks:
+  package : AxelSpringer.apk
+  package : SamsungPayStub.apk
+  package : ImsTelephonyService.apk
+  package : imsservice.apk
+  package : ImsSettings.apk
+  package : ImsLogger+.apk
