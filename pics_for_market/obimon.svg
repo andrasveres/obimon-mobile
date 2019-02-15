@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="72"
+   height="72"
+   viewBox="0 0 72.000002 72.000001"
+   id="svg3340"
+   version="1.1"
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="obimon.svg"
+   inkscape:export-filename="C:\Users\av\Desktop\obimon.png"
+   inkscape:export-xdpi="90"
+   inkscape:export-ydpi="90">
+  <defs
+     id="defs3342" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1.979899"
+     inkscape:cx="125.95231"
+     inkscape:cy="35.126778"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     units="px"
+     inkscape:window-width="1680"
+     inkscape:window-height="988"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:showpageshadow="false" />
+  <metadata
+     id="metadata3345">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(0,-980.36216)">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:91.05749921px;line-height:120%;font-family:'Lucida Fax';-inkscape-font-specification:'Lucida Fax, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;"
+       x="-0.54647571"
+       y="1078.2886"
+       id="text3348"
+       sodipodi:linespacing="120%"
+       transform="scale(1.029799,0.97106332)"><tspan
+         sodipodi:role="line"
+         id="tspan3350"
+         x="-0.54647571"
+         y="1078.2886">O</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:43.31748199px;line-height:125%;font-family:Jokerman;-inkscape-font-specification:'Jokerman, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="19.55776"
+       y="1172.6433"
+       id="text3356"
+       sodipodi:linespacing="125%"
+       transform="scale(1.1332924,0.88238481)"><tspan
+         sodipodi:role="line"
+         id="tspan3358"
+         x="19.55776"
+         y="1172.6433">b</tspan></text>
+    <ellipse
+       id="path3360"
+       cx="31.062191"
+       cy="997.56134"
+       rx="5.3033009"
+       ry="3.7880721" />
+  </g>
+</svg>
