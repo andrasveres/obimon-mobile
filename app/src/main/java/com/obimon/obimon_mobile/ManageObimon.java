@@ -632,8 +632,10 @@ public class ManageObimon {
     }
 
     void stopThread() {
-        manageUpdateThread.stop = true;
-        manageUpdateThread = null;
+        if(manageUpdateThread != null) {
+            manageUpdateThread.stop = true;
+            manageUpdateThread = null;
+        }
 
     }
 

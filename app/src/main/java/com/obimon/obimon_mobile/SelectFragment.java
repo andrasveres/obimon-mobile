@@ -312,7 +312,11 @@ public class SelectFragment extends Fragment {
                 }
             }
 
-            status.setText(Html.fromHtml(item.obimon.bat+"V "+(100-item.obimon.mem)+"% "+extra));
+            String battext=""+item.obimon.bat+"V ";
+            if(item.obimon.bat<=3.3) {
+                battext = "<font color='#EE0000'>"+battext+"</font>";
+            }
+            status.setText(Html.fromHtml(battext+(100-item.obimon.mem)+"% "+extra));
 
             // Return the completed view to render on screen
 

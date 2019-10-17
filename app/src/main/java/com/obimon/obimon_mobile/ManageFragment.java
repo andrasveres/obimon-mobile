@@ -65,6 +65,91 @@ public class ManageFragment extends Fragment {
     Button buttonUpgrade;
     Button buttonRole;
 
+    void setLabels() {
+
+        final ManageObimon manageObimon = MyActivity.myTestService.manageObimon;
+
+        myActivity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+
+                if(manageObimon.sendEmail) {
+                    manageObimon.sendEmail=false;
+                    startActivity(Intent.createChooser(manageObimon.emailIntent, "Your email id"));
+                }
+
+
+                boolean e = false;
+                if (manageObimon.state == IDLE &&
+                        manageObimon.name != null &&
+                        manageObimon.group != null) e = true;
+
+                //Log.d(TAG, "stop "+stop+" buttonReadMem "+buttonReadMem);
+
+                buttonReadMem.setEnabled(e);
+                buttonErase.setEnabled(e);
+                buttonName.setEnabled(e);
+                buttonGroup.setEnabled(e);
+                buttonRole.setEnabled(e);
+
+                //if(MyActivity.myTestService.manageObimon.role == -1) spinnerRole.setEnabled(false);
+                //else spinnerRole.setEnabled(e);
+
+                if (manageObimon.state == UNCONNECTED) {
+                    labelGroup.setText("-");
+                    labelName.setText("-");
+
+                    labelMemory.setText("-");
+                    labelSync.setText("-");
+                    labelRole.setText("-");
+                    //labelAPIversion.setText("-");
+
+                    labelObimonVersion.setText("-");
+                } else {
+                    labelGroup.setText(manageObimon.group);
+                    labelName.setText(manageObimon.name);
+
+                    double freeMem = 100 - (int) ((1000 * manageObimon.memptr - 65536) / (8 * 1024 * 1024 - 65536)) / 10;
+                    labelMemory.setText("" + freeMem + "%");
+                    labelSync.setText("" + manageObimon.sync + "ms");
+
+                    //labelAPIversion.setText("" + MyActivity.myTestService.manageObimon.apiversion);
+
+                    if(manageObimon.build!=null)
+                        labelObimonVersion.setText(manageObimon.build);
+                    else labelObimonVersion.setText("Very old...");
+
+                    if(manageObimon.role!=-1)
+                        labelRole.setText(roles[manageObimon.role]);
+
+                }
+
+                //if(MyActivity.myTestService.manageObimon.build==null ||
+                buttonUpgrade.setEnabled(e);
+
+                if (manageObimon.state == READMEM) {
+                    buttonReadMem.setText("Reading..." + manageObimon.progress + "%");
+                } else {
+                    buttonReadMem.setText("Read memory");
+                }
+
+                if (manageObimon.state == ERASE) {
+                    buttonErase.setText("Erasing..." + manageObimon.progress + "%");
+                } else {
+                    buttonErase.setText("Erase memory");
+                }
+
+                if (MyActivity.myTestService.programmingInProgress) {
+                    buttonUpgrade.setText("Upgrading "+MyActivity.myTestService.programmingPercentage+"%");
+                } else if (MyActivity.myTestService.resetAfterProgramming) {
+                    buttonUpgrade.setText("Rebooting obimon...");
+                } else {
+                    buttonUpgrade.setText("Upgrade device");
+                }
+            }
+        });
+    }
+
     private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
 
         @Override
@@ -499,6 +584,8 @@ public class ManageFragment extends Fragment {
 
             }
         });
+
+        setLabels();
 
         return rootView;
     }

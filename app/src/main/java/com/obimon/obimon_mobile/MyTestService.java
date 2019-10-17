@@ -475,7 +475,11 @@ public class MyTestService  extends Service {
                     String addr = device.getAddress();
                     if(!addr.startsWith("00:1E:C0"))
                         if(!addr.startsWith("00:06:66"))
-                            return;
+                            if(!addr.startsWith("04:91:62")) {
+
+                                Log.d("BLEMANU","New vendor "+addr);
+                                return;
+                        }
 
                     BleAdvertisedData badata = BleUtil.parseAdertisedData(scanRecord);
 
@@ -809,7 +813,7 @@ public class MyTestService  extends Service {
             if (action.equals("android.hardware.usb.action.USB_DEVICE_DETACHED")) {
 
                 Log.d("USB", "Close serial port");
-                manageObimon.serialPort.close();
+                if(manageObimon.serialPort != null) manageObimon.serialPort.close();
 
                 manageObimon.state = ManageObimon.ManageState.UNCONNECTED;
 
