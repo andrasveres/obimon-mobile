@@ -9,6 +9,7 @@ import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.support.annotation.NonNull;
+import android.support.v4.content.FileProvider;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.widget.Toast;
@@ -576,7 +577,14 @@ public class ManageObimon {
         //emailIntent.putExtra(Intent.EXTRA_EMAIL, new String[] {"jon@example.com"}); // recipients
         emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Obimon "+fname);
         emailIntent.putExtra(Intent.EXTRA_TEXT, "Obimon data file");
-        emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(file));
+
+        Uri fileURI = FileProvider.getUriForFile(MyActivity.context,
+                "com.obimon.obimon_mobile.provider",
+                file);
+
+        //emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(file));
+        emailIntent.putExtra(Intent.EXTRA_STREAM, fileURI);
+
         // You can also attach multiple items by passing an ArrayList of Uris
         emailIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         //MyActivity.context.startActivity(Intent.createChooser(emailIntent, "Your email id"));
