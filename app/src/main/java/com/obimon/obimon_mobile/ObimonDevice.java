@@ -66,6 +66,8 @@ public class ObimonDevice {
     ConnectionState wsConnectionState=ConnectionState.IDLE;
 
     TimeSeries series;
+    TimeSeries seriesAcc;
+
     int sHist = 10; // history to show
 
     int lastId = -1;
@@ -100,6 +102,7 @@ public class ObimonDevice {
         }
         connectionState = ConnectionState.IDLE;
         series.clear();
+        seriesAcc.clear();
     }
 
     ObimonDevice(MyTestService service, BluetoothDevice device) {
@@ -114,6 +117,8 @@ public class ObimonDevice {
         name = addr.substring(9);
 
         series = new TimeSeries(this.name); //device.getName());
+        seriesAcc = new TimeSeries(this.name+"_acc"); //device.getName());
+
         housekeepingThread = new HousekeepingThread();
         //housekeepingThread.start();                                      ANDRAS
 
@@ -128,7 +133,7 @@ public class ObimonDevice {
         received++;
     }
 
-    void AddData(int id, double d) {
+    void AddData(int id, double d, int acc) {
 
         double gsr = d / 1000.0;
 
@@ -151,9 +156,11 @@ public class ObimonDevice {
 
 
         series.add(System.currentTimeMillis(), v);
+        seriesAcc.add(System.currentTimeMillis(), acc);
 
-        if(mWebSocketClient!=null)
-            if(mWebSocketClient.getConnection().isOpen()) mWebSocketClient.send("g "+(int)(gsr*1000));
+
+        //if(mWebSocketClient!=null)
+        //    if(mWebSocketClient.getConnection().isOpen()) mWebSocketClient.send("g "+(int)(gsr*1000));
 
         lastGsr = gsr;
 /*

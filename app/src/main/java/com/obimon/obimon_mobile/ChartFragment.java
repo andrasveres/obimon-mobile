@@ -15,6 +15,7 @@ import android.widget.LinearLayout;
 
 import org.achartengine.ChartFactory;
 import org.achartengine.GraphicalView;
+import org.achartengine.chart.PointStyle;
 import org.achartengine.model.XYMultipleSeriesDataset;
 import org.achartengine.model.XYSeries;
 import org.achartengine.renderer.XYMultipleSeriesRenderer;
@@ -25,6 +26,8 @@ import java.util.HashMap;
 /**
  * Created by andrasveres on 27/03/15.
  */
+
+
 public class ChartFragment extends Fragment {
     String TAG = "ChartFragment";
 
@@ -116,7 +119,8 @@ public class ChartFragment extends Fragment {
 
                     if(!obi.selected) continue;
 
-                    XYSeriesRenderer renderer = new XYSeriesRenderer();;
+                    XYSeriesRenderer renderer = new XYSeriesRenderer();
+
                     renderer.setColor(obi.color);
                     renderer.setLineWidth(6);
 
@@ -125,9 +129,10 @@ public class ChartFragment extends Fragment {
                     //renderer.setFillPoints(true);
 
                     obimonChartDataMap.put(obi, renderer);
-
                     dataset.addSeries(obi.series);
+
                     mRenderer.addSeriesRenderer(renderer);
+
                 }
 
                 for(ObimonDevice obi : obimonChartDataMap.keySet()) {
@@ -235,6 +240,7 @@ public class ChartFragment extends Fragment {
         //mRenderer.setXLabelsPadding(100);
         //chartView.setHorizontalScrollBarEnabled(true);
         //chartView = ChartFactory.getLineChartView(getActivity(), activity.dataset, activity.mRenderer);
+
         chartView = ChartFactory.getTimeChartView(getActivity(), dataset, mRenderer, "H:mm:ss");
 
         LinearLayout l = (LinearLayout) getActivity().findViewById(R.id.chart);

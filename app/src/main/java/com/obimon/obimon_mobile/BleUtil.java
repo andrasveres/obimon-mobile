@@ -62,7 +62,8 @@ final public class BleUtil {
                     manufacturerSpecificBytes = new byte[length-1];
                     buffer.get(manufacturerSpecificBytes);
                 default:
-                    buffer.position(buffer.position() + length - 1);
+                    //Log.e("UUUU", "what is this "+length);
+                    if(length>0 && length < buffer.remaining()) buffer.position(buffer.position() + length - 1);
                     break;
             }
         }

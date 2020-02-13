@@ -127,6 +127,14 @@ public class MyTestService  extends Service {
                         else break;
                     }
 
+                    while(true) {
+                        XYSeries s = obi.seriesAcc;
+                        //Log.d(TAG, "AddData: "+series.getItemCount());
+                        if(s.getItemCount()==0) break;
+                        if (s.getX(0) < System.currentTimeMillis() - 1000 * graphHistory) s.remove(0);
+                        else break;
+                    }
+
                 }
 
             }
@@ -597,6 +605,7 @@ public class MyTestService  extends Service {
                             obi.group = s;
 
                             obi.series.setTitle(obi.name);
+                            obi.seriesAcc.setTitle(obi.name+"_acc");
 
                             obi.apiversion = apiversion;
 
@@ -674,6 +683,7 @@ public class MyTestService  extends Service {
                             obi.group = s;
 
                             obi.series.setTitle(obi.name);
+                            obi.seriesAcc.setTitle(obi.name+"_acc");
 
                             //obi.apiversion = apiversion;
 
@@ -709,16 +719,17 @@ public class MyTestService  extends Service {
                         case 0x22: {
 
                             int gsr = 0;
-                            for (int i = 3; i < 7; i++) {
+                            int acc= badata.manufacturerSpecificBytes[3] & 0x000000ff;
+                            for (int i = 4; i < 7; i++) {
                                 gsr *= 256;
                                 gsr += badata.manufacturerSpecificBytes[i] & 0x000000ff;
                             }
 
-                            //Log.d(TAG, "onLeScan: Obimon "+n+" "+gsr);
+                            Log.d(TAG, "onLeScan: Obimon "+n+" "+gsr+" acc "+acc);
 
                             obi.lastGsrTime = System.currentTimeMillis();
 
-                            obi.AddData(n, gsr);
+                            obi.AddData(n, gsr, acc);
                             break;
 
                         }

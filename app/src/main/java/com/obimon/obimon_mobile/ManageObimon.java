@@ -613,13 +613,18 @@ public class ManageObimon {
         DateFormat formatter = new SimpleDateFormat("yyyy.MM.dd\tHH:mm:ss.SSS");
 
         for(int i=8; i<256; i+=4) {
-            int g = block.getInt();
+            int d = block.getInt();
+
+            int acc = (d >> 24) & 0xff;
+            int g = d & 0x00ffffff;
+
+            if(g == 0xffffff || g==0) continue; //ffffff
 
             Date date = new Date(ts);
             String dateFormatted = formatter.format(date);
 
             //Log.d("DUMP", ""+dateFormatted+"\t"+ts+"\t"+g);
-            out.print(""+dateFormatted+"\t"+ts+"\t"+g+"\n");
+            out.print(""+dateFormatted+"\t"+ts+"\t"+g+"\t"+acc+"\n");
 
             ts+=1000/8;
         }
