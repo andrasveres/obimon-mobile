@@ -2,15 +2,20 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent" >
+
     <TextView
         android:id="@+id/obimon_name"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textAppearance="?android:attr/textAppearanceLarge"
-        android:text="Name"
-        android:layout_marginLeft="0dp"
+        android:layout_alignWithParentIfMissing="true"
         android:layout_alignParentTop="true"
-        android:layout_toEndOf="@+id/obimon_color_label" />
+        android:layout_centerHorizontal="false"
+        android:layout_marginLeft="15dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="100dp"
+        android:text="Name"
+        android:textAppearance="?android:attr/textAppearanceLarge" />
+
     <TextView
         android:id="@+id/obimon_connection_status"
         android:layout_width="wrap_content"
@@ -18,8 +23,8 @@
         android:textAppearance="?android:attr/textAppearanceLarge"
         android:text="Status"
         android:layout_alignParentTop="true"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true" />
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentEnd="false" />
 
 
     <TextView
@@ -30,5 +35,25 @@
         android:id="@+id/obimon_color_label"
         android:layout_alignParentTop="true"
         android:layout_alignParentStart="true" />
+
+    <TextView
+        android:id="@+id/sync_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_marginEnd="10dp"
+        android:layout_toStartOf="@+id/obimon_select"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:text="SYNC" />
+
+    <CheckBox
+        android:id="@+id/obimon_select"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:paddingEnd="10dp"
+        android:focusable="false"
+        android:focusableInTouchMode="false"
+        android:text=" " />
 
 </RelativeLayout>

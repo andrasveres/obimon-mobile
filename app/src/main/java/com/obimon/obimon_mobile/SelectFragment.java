@@ -293,28 +293,28 @@ public class SelectFragment extends Fragment {
                 s = String.format("%.2f uS", item.obimon.lastGsr);
             }
 
-            if(System.currentTimeMillis() - item.obimon.lastTsBroadcast < 60000) {
-                s = " <font color='#EE0000'>TS</font>";
-                mac.setText(Html.fromHtml(s));
-            } else mac.setText(Html.fromHtml(item.obimon.addr.substring(9)));
+            mac.setText(Html.fromHtml(item.obimon.addr.substring(9)));
 
             String extra="";
-            if(item.obimon.build.compareTo("unknown")!=0) {
-                if(item.obimon.build.compareTo(MyTestService.latestFirmwareDate)!=0) {
-                    //Log.d(TAG, "Old firmware");
-                    extra += "<font color='#EE0000'>F</font>";
-                }
+//            if(item.obimon.build.compareTo("unknown")!=0) {
+//                if(item.obimon.build.compareTo(MyTestService.latestFirmwareDate)!=0) {
+//                    //Log.d(TAG, "Old firmware");
+//                    extra += "<font color='#EE0000'>F</font>";
+//                }
+//            }
+
+            if(item.obimon.lastSessionSync>0) {
+                extra += " <font color='#008000'>SYNC</font>";
+            } else {
+                extra += " <font color='#EE0000'>SYNC</font>";
             }
 
-            if(Math.abs(item.obimon.sync) > 100) {
-                if(System.currentTimeMillis() - item.obimon.lastGsrTime < 5000 || System.currentTimeMillis() - item.obimon.lastTsBroadcast < 60000) {
-                    extra += " <font color='#EE0000'>T</font>";
-                }
-            }
 
-            String battext=""+item.obimon.bat+"V ";
+            String battext="";
+            if(item.obimon.bat==0) battext += "-V ";
+            else battext+=item.obimon.bat+"V ";
             if(item.obimon.bat<=3.3) {
-                battext = "<font color='#EE0000'>"+battext+"</font>";
+                battext = "<font color='#AA0000'>"+battext+"</font>";
             }
             status.setText(Html.fromHtml(battext+(100-item.obimon.mem)+"% "+extra));
 

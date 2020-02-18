@@ -2,6 +2,7 @@ package com.obimon.obimon_mobile;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -10,8 +11,12 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.BaseExpandableListAdapter;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.ExpandableListView;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -60,70 +65,78 @@ public class DevicesFragment extends Fragment {
                     break;
                 }
 
+                if(MyActivity.myTestService==null) return;
+
+                // add new devices to list
+                for(ObimonDevice obimon : MyActivity.myTestService.foundDevices.values()) {
+
+                    //if(!obimon.selected) continue;
+
+                    boolean found = false;
+                    for(ObimonListItem item : listedDevices) {
+                        if(item.obimon == obimon) {
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if(!found) {
+                        ObimonListItem newItem = new ObimonListItem();
+                        newItem.obimon = obimon;
+
+                        SharedPreferences savedSelection = myActivity.getSharedPreferences("selected", 0);
+                        obimon.selected = savedSelection.getBoolean(obimon.addr, false);
+
+                        listedDevices.add(newItem);
+
+
+                    }
+
+                }
+
+                //ArrayList<ObimonListItem> toDelete = new ArrayList<ObimonListItem>();
+
+                // update items
+                for(ObimonListItem item : listedDevices) {
+
+//                            if(!item.obimon.selected) {
+//                                toDelete.add(item);
+//                                continue;
+//                            }
+
+                    item.received += item.obimon.received;
+                    item.lost += item.obimon.lost;
+
+                    item.obimon.received=0;
+                    item.obimon.lost=0;
+
+                    item.bat = item.obimon.bat;
+                    item.mem = item.obimon.mem;
+                    item.signal = item.obimon.signal;
+                    item.lastSessionSync = item.obimon.lastSessionSync;
+                }
+
+                // remove deselected items
+
+//                        for(ObimonListItem item : toDelete) {
+//                            listedDevices.remove(item);
+//                        }
+
+                Collections.sort(listedDevices, new CustomComparator());
+
                 myActivity.runOnUiThread(new Runnable() {
 
                     @Override
                     public void run() {
 
-                        if(MyActivity.myTestService==null) return;
-
-                        // add new devices to list
-                        for(ObimonDevice obimon : MyActivity.myTestService.foundDevices.values()) {
-
-                            if(!obimon.selected) continue;
-
-                            boolean found = false;
-                            for(ObimonListItem item : listedDevices) {
-                                if(item.obimon == obimon) {
-                                    found = true;
-                                    break;
-                                }
-                            }
-
-                            if(!found) {
-                                ObimonListItem newItem = new ObimonListItem();
-                                newItem.obimon = obimon;
-                                listedDevices.add(newItem);
-                            }
-
-                        }
-
-                        ArrayList<ObimonListItem> toDelete = new ArrayList<ObimonListItem>();
-
-                        // update items
-                        for(ObimonListItem item : listedDevices) {
-
-                            if(!item.obimon.selected) {
-                                toDelete.add(item);
-                                continue;
-                            }
-
-                            item.received += item.obimon.received;
-                            item.lost += item.obimon.lost;
-
-                            item.obimon.received=0;
-                            item.obimon.lost=0;
-
-                            item.bat = item.obimon.bat;
-                            item.mem = item.obimon.mem;
-                            item.signal = item.obimon.signal;
-                            item.sync = item.obimon.sync;
-                        }
-
-                        // remove deselected items
-
-                        for(ObimonListItem item : toDelete) {
-                            listedDevices.remove(item);
-                        }
-
-                        Collections.sort(listedDevices, new CustomComparator());
+                        Log.d(TAG, "call NotifyDatasetChanged");
 
                         listAdapter.notifyDataSetChanged();
                     }
                 });
 
                 try {
-                    sleep(100);
+                    sleep(1000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -215,10 +228,29 @@ public class DevicesFragment extends Fragment {
         int mem=0;
         int signal=0;
         double bat=0;
-        double sync=0;
+        long lastSessionSync=0;
         String status;
     }
 
+    public class MyCheckedChangeListener implements CompoundButton.OnCheckedChangeListener {
+        ObimonDevice obi;
+
+        public MyCheckedChangeListener(ObimonDevice obi) {
+            this.obi = obi;
+        }
+
+        @Override
+        public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+            obi.selected = b;
+            Log.i(TAG, "Obi checkbox "+obi.name+" selection:"+obi.selected);
+
+            SharedPreferences savedSelection = myActivity.getSharedPreferences("selected", 0);
+            SharedPreferences.Editor editor = savedSelection.edit();
+            editor.putBoolean(obi.addr, obi.selected);
+            editor.commit();
+
+        }
+    }
 
     public class MyExpandableListAdapter extends BaseExpandableListAdapter {
         private Context _context;
@@ -256,7 +288,8 @@ public class DevicesFragment extends Fragment {
             ObimonListItem item = _listDataHeader.get(groupPosition);
 
             TextView stat_value = (TextView) convertView.findViewById(R.id.stat_value);
-            stat_value.setText(""+item.received+"/"+item.lost);
+            //stat_value.setText(""+item.received+"/"+item.lost);
+            stat_value.setText(""+item.received);
 
             TextView battery_value = (TextView) convertView.findViewById(R.id.battery_value);
             battery_value.setText(""+item.bat+"V");
@@ -297,18 +330,12 @@ public class DevicesFragment extends Fragment {
             else signal_value.setBackgroundColor(Color.TRANSPARENT);
 
             TextView sync_value = (TextView) convertView.findViewById(R.id.sync_value);
-            if(item.sync == Long.MAX_VALUE) {
-                sync_value.setText("No NTP");
-                sync_value.setBackgroundColor(Color.RED);
-            } else if(Math.abs(item.sync)>1e6) {
-                sync_value.setText("NO");
-                sync_value.setBackgroundColor(Color.RED);
-            } else if(Math.abs(item.sync)>1000) {
-                sync_value.setText("" + (int) (item.sync) + "ms");
-                sync_value.setBackgroundColor(Color.YELLOW);
+            if(item.lastSessionSync>0) {
+                sync_value.setText("OK");
+                sync_value.setBackgroundColor(Color.GREEN);
             } else {
-                sync_value.setText("" + (int) (item.sync) + "ms");
-                sync_value.setBackgroundColor(Color.TRANSPARENT);
+                sync_value.setText("WAIT");
+                sync_value.setBackgroundColor(Color.RED);
             }
 
             TextView mac_value = (TextView) convertView.findViewById(R.id.mac_value);
@@ -353,6 +380,10 @@ public class DevicesFragment extends Fragment {
             TextView name = (TextView) convertView.findViewById(R.id.obimon_name);
             name.setText(item.obimon.name);
 
+            if(item.bat <=3.4 && item.bat>0) {
+                name.setBackgroundColor(Color.RED);
+            } //else name.setBackgroundColor(Color.WHITE);
+
             TextView status = (TextView) convertView.findViewById(R.id.obimon_connection_status);
 
             String s="";
@@ -361,7 +392,7 @@ public class DevicesFragment extends Fragment {
             } else if(System.currentTimeMillis() - item.obimon.lastGsrTime <10000) {
                 //s = "MEASURING";
                 s = String.format("%.2f uS", item.obimon.lastGsr);
-            } else s="DETECTED";
+            } else s="INRANGE";
 
             status.setText(s);
 
@@ -370,6 +401,25 @@ public class DevicesFragment extends Fragment {
             Typeface boldTypeface = Typeface.defaultFromStyle(Typeface.BOLD);
             color_label.setTypeface(boldTypeface);
             color_label.setTextColor(item.obimon.color);
+
+            TextView sync_status = (TextView) convertView.findViewById(R.id.sync_status);
+            if(item.lastSessionSync>0) {
+                sync_status.setText("SYNC");
+                sync_status.setBackgroundColor(Color.GREEN);
+            } else {
+                sync_status.setText("SYNC");
+                sync_status.setBackgroundColor(Color.RED);
+            }
+
+
+            //Log.i(TAG, "Obi init checkbox "+item.obimon.name+" selection:"+item.obimon.selected);
+
+            CheckBox obi_select = (CheckBox) convertView.findViewById(R.id.obimon_select);
+
+            obi_select.setOnCheckedChangeListener(null);
+            obi_select.setChecked(item.obimon.selected);
+            obi_select.setOnCheckedChangeListener(new MyCheckedChangeListener(item.obimon));
+
 
             return convertView;
         }

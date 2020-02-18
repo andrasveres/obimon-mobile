@@ -36,6 +36,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -58,9 +59,9 @@ public class MyTestService  extends Service {
     boolean stop=false;
 
     boolean ntp = false;
-    long clockOffset =0;
+    long ntpCorr =0;
 
-    static String latestFirmwareDate = "Unknown";
+    static String latestFirmwareDate = "wait";
 
     private Handler mHandler;
     BluetoothAdapter mBluetoothAdapter;
@@ -82,6 +83,8 @@ public class MyTestService  extends Service {
     Bootloader bootloader;
 
     TimeThread timeThread = null;
+
+    ObimonDatabase obimonDatabase = null;
 
     /*
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -199,6 +202,14 @@ public class MyTestService  extends Service {
         latestFirmwareDate = bl.GetObiVersionFromHex();
 
         Log.d("BL", "D '"+latestFirmwareDate+"'");
+
+        // DATABASE
+        obimonDatabase = ObimonDatabase.getInstance(this);
+        List<SyncData> syncDataList = obimonDatabase.syncDataDao().getSyncDataList();
+
+        Log.d("OBIDB", "syncDataList size "+syncDataList.size());
+
+
 
     }
 
@@ -485,7 +496,7 @@ public class MyTestService  extends Service {
                         if(!addr.startsWith("00:06:66"))
                             if(!addr.startsWith("04:91:62")) {
 
-                                Log.d("BLEMANU","New vendor "+addr);
+                                //Log.d("BLEMANU","New vendor "+addr);
                                 return;
                         }
 
@@ -502,6 +513,9 @@ public class MyTestService  extends Service {
                         obi = new ObimonDevice(MyTestService.this, device);
                         obi.connected();
                         foundDevices.put(addr, obi);
+
+                        obi.color = ObiColors.colors[foundDevices.size() % ObiColors.colors.length];
+
                     } else {
                         obi = foundDevices.get(addr);
                     }
@@ -556,6 +570,44 @@ public class MyTestService  extends Service {
 
                             break;
                         }
+
+                        // Session
+                        case 0x60: {
+
+                            if(badata.manufacturerSpecificBytes.length!=15) {
+                                Log.e(TAG, "WRONG SESSION SIZE "+obi.addr+" "+obi.name+" "+badata.manufacturerSpecificBytes.length);
+                                break;
+                            }
+
+                            long session=0;
+                            for (int i=3; i < 4+3; i++) {
+                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                                session *= 256;
+                                session += b;
+                            }
+
+                            long ts = 0;
+                            for (int i=7; i < 8+7; i++) {
+                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                                ts *= 256;
+                                ts += b;
+                            }
+                            ts /= 32.768;
+
+                            long now = (System.currentTimeMillis() + ntpCorr);
+                            long offset = System.currentTimeMillis() - ts;
+
+                            Log.d(TAG, "" + obi.addr + " "+obi.name+" SESSION ts="+ ts+ " session="+session+" ====================== offset " +offset+" ntpcorr "+ntpCorr);
+
+                            SyncData d = new SyncData(System.currentTimeMillis(), addr, session, ts, offset, ntpCorr);
+                            obimonDatabase.syncDataDao().insertSyncData(d);
+
+                            obi.lastSessionSync = System.currentTimeMillis();
+
+
+                            break;
+                        }
+
                         // compact
                         case 0x14: {
 
@@ -575,14 +627,14 @@ public class MyTestService  extends Service {
                             obi.bat = bat / 10.0;
                             obi.mem = mem;
 
-                            long now = (System.currentTimeMillis() + clockOffset);
+                            long now = (System.currentTimeMillis() + ntpCorr);
                             long now_device = (long) (now * 32.768) / 1024;
                             long trimmed = now_device & 0x0000ffff;
                             Log.d(TAG, "" + addr + " " + now_device + " " + trimmed + " " + sync);
 
-                            double diff = (trimmed - sync) * 1024.0 / 32.768;
+                            //double diff = (trimmed - sync) * 1024.0 / 32.768;
 
-                            obi.sync = diff;
+                            //obi.sync = diff;
 
                             String s = "";
 
@@ -614,15 +666,6 @@ public class MyTestService  extends Service {
                             //obi.AddData(n, gsr);
                             break;
 
-                        }
-
-                        case 0x16: {
-                            int i = 3;
-                            int vbat = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-                            int vdd = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-
-                            Log.d(TAG, "LOWBAT "+obi.addr+" vbat:"+vbat+" vdd:"+vdd);
-                            break;
                         }
 
                         // Uptime
@@ -725,7 +768,7 @@ public class MyTestService  extends Service {
                                 gsr += badata.manufacturerSpecificBytes[i] & 0x000000ff;
                             }
 
-                            Log.d(TAG, "onLeScan: Obimon "+n+" "+gsr+" acc "+acc);
+                            Log.d(TAG, "GSRDATA==== "+n+" "+gsr+" acc "+acc);
 
                             obi.lastGsrTime = System.currentTimeMillis();
 
@@ -760,11 +803,11 @@ public class MyTestService  extends Service {
 
                             long ts = (long) (tick / 32.768);
 
-                            long now = System.currentTimeMillis() + clockOffset;
-                            long d = ts - now;
-                            obi.sync = d;
+                            long now = System.currentTimeMillis() + ntpCorr;
+                            //long d = ts - now;
+                            //obi.sync = d;
 
-                            Log.d(TAG, "" + obi.addr + " STAT " + obi.name + " ===== " + n + " " + obi.bat + " " + memptr + " " + tick + " " + clockOffset + " " + obi.sync);
+                            Log.d(TAG, "" + obi.addr + " STAT " + obi.name + " ===== " + n + " " + obi.bat + " " + memptr + " " + tick + " " + ntpCorr);
 
                             //obi.AddData(n, gsr);
 
@@ -773,7 +816,7 @@ public class MyTestService  extends Service {
                         }
 
                         default: {
-                            Log.d(TAG, "UNKNOWN MSG "+obi.addr);
+                            Log.d(TAG, "UNKNOWN MSG "+obi.addr+" "+obi.name);
                         }
                     }
                 }
@@ -831,7 +874,6 @@ public class MyTestService  extends Service {
                 manageObimon.name=null;
                 manageObimon.group=null;
                 manageObimon.apiversion=-1;
-                manageObimon.role=-1;
                 manageObimon.build=null;
 
                 manageObimon.stopThread();
@@ -895,7 +937,7 @@ public class MyTestService  extends Service {
                         long now = client.getNtpTime() + SystemClock.elapsedRealtime() - client.getNtpTimeReference();
 
                         ntp = true;
-                        clockOffset = client.clockOffset;
+                        ntpCorr = client.clockOffset;
 
                         timeDiff = now - System.currentTimeMillis();
 
@@ -903,7 +945,7 @@ public class MyTestService  extends Service {
 
                     } else {
 
-                        clockOffset = 0; // -1000000000;
+                        ntpCorr = 0; // -1000000000;
                         ntp = false;
                     }
 

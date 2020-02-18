@@ -7,13 +7,13 @@
     android:paddingStart="15dp">
 
     <TextView
+        android:id="@+id/battery_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textAppearance="?android:attr/textAppearanceSmall"
-        android:text="Bat:"
-        android:id="@+id/battery_text"
         android:layout_below="@+id/signal_text"
-        android:layout_alignParentStart="true" />
+        android:layout_alignParentStart="true"
+        android:text="Battery:"
+        android:textAppearance="?android:attr/textAppearanceSmall" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -111,20 +111,22 @@
         android:layout_toStartOf="@+id/sync_value" />
 
     <TextView
-        android:text="Ver:"
+        android:id="@+id/textView4"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@+id/textView3"
         android:layout_alignParentStart="true"
-        android:id="@+id/textView4" />
+        android:text="Firmware:" />
 
     <TextView
-        android:text="unknown"
+        android:id="@+id/version"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignBottom="@+id/textView4"
+        android:layout_marginStart="15dp"
+        android:layout_marginBottom="0dp"
         android:layout_toEndOf="@+id/battery_text"
-        android:id="@+id/version" />
+        android:text="wait..." />
 
     <TextView
         android:text="unknown"

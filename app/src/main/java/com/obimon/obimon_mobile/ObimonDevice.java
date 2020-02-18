@@ -49,7 +49,7 @@ public class ObimonDevice {
 
     BluetoothDevice device;
     String addr=null;
-    String name="unknown", build="unknown", group="unknown";
+    String name="wait", build="wait", group="wait";
     int apiversion=-1;
     int color;
 
@@ -87,7 +87,7 @@ public class ObimonDevice {
     double bat=0;
     int mem=0;
     int signal=0;
-    double sync=Double.MAX_VALUE;
+    long lastSessionSync=0;
 
     public enum ConnectionState {
         IDLE, CONNECTING, CONNECTED, FAILED

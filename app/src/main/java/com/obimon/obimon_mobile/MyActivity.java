@@ -49,6 +49,7 @@ import org.acra.config.ConfigurationBuilder;
 
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 //@ReportsCrashes(mailTo = "kakukk71@gmail.com",
@@ -358,16 +359,16 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
         @Override
         public Fragment getItem(int i) {
             switch (i) {
-                case 0:
-                    return new SelectFragment();
+                //case 0:
+                //    return new SelectFragment();
 
-                case 1:
+                case 0:
                     return new DevicesFragment();
 
-                case 2:
+                case 1:
                     return new ChartFragment();
 
-                case 3:
+                case 2:
                     return new SettingsFragment();
 
                 default:
@@ -377,19 +378,19 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
 
         @Override
         public int getCount() {
-            return 5;
+            return 4;
         }
 
         @Override
         public CharSequence getPageTitle(int position) {
             switch(position) {
+                //case 0:
+                //    return "Select";
                 case 0:
-                    return "Select";
+                    return "Obimons";
                 case 1:
-                    return "Details";
-                case 2:
                     return "Chart";
-                case 3:
+                case 2:
                     return "Settings";
                 default:
                     return "Manage";

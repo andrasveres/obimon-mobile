@@ -24,7 +24,6 @@ import android.widget.Toast;
 
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.CHANGE_GROUP;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.CHANGE_NAME;
-import static com.obimon.obimon_mobile.ManageObimon.ManageState.CHANGE_ROLE;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.ERASE;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.IDLE;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.READMEM;
@@ -57,13 +56,11 @@ public class ManageFragment extends Fragment {
 
     TextView labelObimonVersion;
     TextView labelLatestVersion;
-    TextView labelRole;
 
 
     Button buttonReadMem;
     Button buttonErase;
     Button buttonUpgrade;
-    Button buttonRole;
 
     void setLabels() {
 
@@ -90,7 +87,6 @@ public class ManageFragment extends Fragment {
                 buttonErase.setEnabled(e);
                 buttonName.setEnabled(e);
                 buttonGroup.setEnabled(e);
-                buttonRole.setEnabled(e);
 
                 //if(MyActivity.myTestService.manageObimon.role == -1) spinnerRole.setEnabled(false);
                 //else spinnerRole.setEnabled(e);
@@ -100,8 +96,6 @@ public class ManageFragment extends Fragment {
                     labelName.setText("-");
 
                     labelMemory.setText("-");
-                    labelSync.setText("-");
-                    labelRole.setText("-");
                     //labelAPIversion.setText("-");
 
                     labelObimonVersion.setText("-");
@@ -111,16 +105,13 @@ public class ManageFragment extends Fragment {
 
                     double freeMem = 100 - (int) ((1000 * manageObimon.memptr - 65536) / (8 * 1024 * 1024 - 65536)) / 10;
                     labelMemory.setText("" + freeMem + "%");
-                    labelSync.setText("" + manageObimon.sync + "ms");
+                    //labelSync.setText("" + manageObimon.sync + "ms");
 
                     //labelAPIversion.setText("" + MyActivity.myTestService.manageObimon.apiversion);
 
                     if(manageObimon.build!=null)
                         labelObimonVersion.setText(manageObimon.build);
                     else labelObimonVersion.setText("Very old...");
-
-                    if(manageObimon.role!=-1)
-                        labelRole.setText(roles[manageObimon.role]);
 
                 }
 
@@ -181,7 +172,6 @@ public class ManageFragment extends Fragment {
                         buttonErase.setEnabled(e);
                         buttonName.setEnabled(e);
                         buttonGroup.setEnabled(e);
-                        buttonRole.setEnabled(e);
 
                         //if(MyActivity.myTestService.manageObimon.role == -1) spinnerRole.setEnabled(false);
                         //else spinnerRole.setEnabled(e);
@@ -191,8 +181,6 @@ public class ManageFragment extends Fragment {
                             labelName.setText("-");
 
                             labelMemory.setText("-");
-                            labelSync.setText("-");
-                            labelRole.setText("-");
                             //labelAPIversion.setText("-");
 
                             labelObimonVersion.setText("-");
@@ -202,16 +190,13 @@ public class ManageFragment extends Fragment {
 
                             double freeMem = 100 - (int) ((1000 * manageObimon.memptr - 65536) / (8 * 1024 * 1024 - 65536)) / 10;
                             labelMemory.setText("" + freeMem + "%");
-                            labelSync.setText("" + manageObimon.sync + "ms");
+                            //labelSync.setText("" + manageObimon.sync + "ms");
 
                             //labelAPIversion.setText("" + MyActivity.myTestService.manageObimon.apiversion);
 
                             if(manageObimon.build!=null)
                                 labelObimonVersion.setText(manageObimon.build);
                             else labelObimonVersion.setText("Very old...");
-
-                            if(manageObimon.role!=-1)
-                                labelRole.setText(roles[manageObimon.role]);
 
                         }
 
@@ -325,10 +310,7 @@ public class ManageFragment extends Fragment {
         labelLatestVersion = (TextView)rootView.findViewById(R.id.manage_latest_version);
 
         labelMemory = (TextView)rootView.findViewById(R.id.manage_memory);
-        labelSync = (TextView)rootView.findViewById(R.id.manage_sync);
         //labelAPIversion = (TextView)rootView.findViewById(R.id.manage_apiversion);
-
-        labelRole = (TextView)rootView.findViewById(R.id.manage_label_role);
 
         labelLatestVersion.setText(MyActivity.myTestService.latestFirmwareDate);
         labelObimonVersion.setText("");
@@ -372,49 +354,6 @@ public class ManageFragment extends Fragment {
 //
 //            }
 //        });
-
-        buttonRole = (Button)rootView.findViewById(R.id.button_role);
-        buttonRole.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d("BL", "role button pressed");
-
-                AlertDialog.Builder builder = new AlertDialog.Builder(ManageFragment.this.getContext());
-                builder.setTitle("Change Obimon role");
-
-                builder.setItems(roles, new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int position) {
-                                MyActivity.myTestService.manageObimon.newrole = position;
-                                MyActivity.myTestService.manageObimon.state = CHANGE_ROLE;
-                            }
-                        });
-
-                // Set up the input
-                //final EditText input = new EditText(ManageFragment.this.getContext());
-                // Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
-                ///input.setInputType(InputType.TYPE_CLASS_TEXT);
-                //builder.setView(input);
-
-                // Set up the buttons
-                //builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                //    @Override
-                //    public void onClick(DialogInterface dialog, int which) {
-                //        Intent batteryIntent = getContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-                //        int level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-                //        int scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-                //    }
-                //});
-                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.cancel();
-                    }
-                });
-
-                builder.show();
-
-            }
-        });
 
         buttonUpgrade = (Button)rootView.findViewById(R.id.manage_button_upgrade);
         buttonUpgrade.setOnClickListener(new View.OnClickListener() {

@@ -59,7 +59,7 @@ public class SettingsFragment extends Fragment {
             @Override
             public void run() {
 
-                Date date = new Date(System.currentTimeMillis() + MyActivity.myTestService.clockOffset);
+                Date date = new Date(System.currentTimeMillis() + MyActivity.myTestService.ntpCorr);
 
                 if(MyActivity.myTestService.ntp) {
                     ntpstatus.setText("Network time OK "+date);

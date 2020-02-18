@@ -1,14 +1,8 @@
 package com.obimon.obimon_mobile;
 
-import android.app.PendingIntent;
-import android.content.Context;
 import android.content.Intent;
-import android.hardware.usb.UsbDevice;
-import android.hardware.usb.UsbDeviceConnection;
-import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Handler;
-import android.support.annotation.NonNull;
 import android.support.v4.content.FileProvider;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -17,49 +11,30 @@ import android.widget.Toast;
 import com.felhr.usbserial.CDCSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.CharBuffer;
-import java.nio.DoubleBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.nio.LongBuffer;
-import java.nio.ShortBuffer;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Vector;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.CHANGE_GROUP;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.CHANGE_NAME;
-import static com.obimon.obimon_mobile.ManageObimon.ManageState.CHANGE_ROLE;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.ERASE;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.IDLE;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.RESET;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.READMEM;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.UNCONNECTED;
-import static java.net.Proxy.Type.HTTP;
+import static java.lang.Math.abs;
 
 /**
  * Created by av on 2016.11.06..
@@ -74,8 +49,10 @@ public class ManageObimon {
     String name = null;
     String group = null;
 
-    int role=-1;
-    int newrole=-1;
+    // for post-sync
+    long offset=0;
+    long dumpSession=0;
+    int nSession=0;
 
     private Handler mHandler = new Handler();
 
@@ -87,7 +64,7 @@ public class ManageObimon {
     //byte bret[] = null;
 
     long memptr = 0;
-    long sync = 0;
+    //long sync = 0;
 
     int apiversion=-1;
     String build=null;
@@ -109,7 +86,7 @@ public class ManageObimon {
     BlockingQueue<DataBlock> queue = new ArrayBlockingQueue<DataBlock>(131072);
 
     public enum ManageState {
-        UNCONNECTED, READMEM, ERASE, IDLE, CHANGE_NAME, CHANGE_GROUP, CHANGE_ROLE, RESET
+        UNCONNECTED, READMEM, ERASE, IDLE, CHANGE_NAME, CHANGE_GROUP, RESET
     }
 
     ManageState state = UNCONNECTED;
@@ -154,48 +131,7 @@ public class ManageObimon {
 
     }
 
-//    String sendCmdOld(String cmd) {
-//        Log.d("USB", "sendCmd: "+cmd);
-//
-//        if (serialPort == null) return null;
-//        if (state == UNCONNECTED) return null;
-//
-//        bret = null;
-//        serialPort.write(cmd.getBytes());
-//        long start = System.currentTimeMillis();
-//        while (bret == null && System.currentTimeMillis() < start + 1000) ;
-//
-//        if (bret == null) {
-//            Log.d("USB", "No response");
-//            return null;
-//        }
-//        if (bret.length == 0) {
-//            Log.d("USB", "Empty response");
-//            return null;
-//        }
-//
-//        if (bret[0] != cmd.charAt(0)) {
-//            Log.d("USB", "SendCMD wrong response "+((char)bret[0]));
-//            bret = null;
-//            return null;
-//        }
-//
-//        String ret = null;
-//        String s=null;
-//        try {
-//            s = new String(bret, "UTF-8");
-//            ret = s.substring(2);
-//        } catch (UnsupportedEncodingException e) {
-//            e.printStackTrace();
-//            bret = null;
-//            return null;
-//        }
-//
-//        Log.d("USB", "sendCmd ret="+s);
-//
-//        bret = null;
-//        return ret;
-//    }
+
 
     ManageObimon(MyTestService myTestService) {
         this.myTestService = myTestService;
@@ -305,7 +241,7 @@ public class ManageObimon {
 
                 if (state == READMEM) {
                     //readMem();
-                    readMem2();
+                    readMem();
                     state = IDLE;
                 }
 
@@ -326,34 +262,12 @@ public class ManageObimon {
                     state = IDLE;
                 }
 
-                if (state == CHANGE_ROLE) {
-
-                    if(newrole==-1) {
-                        Log.e("USB", "Wrong new role");
-                        continue;
-                    }
-
-                    Log.d("USB", "Change role: " + newrole);
-                    sendCmd("R " + newrole);
-
-                    newrole = -1;
-
-                    // read back
-                    String s = sendCmd("R");
-                    Log.d("USB", "Role " + s);
-                    if(s!=null) {
-                        role = Integer.parseInt(s);
-                    }
-
-                    state = IDLE;
-                }
-
                 if(state == UNCONNECTED) continue;
-                getSync();
+                //getSync();
 
-                if(Math.abs(sync)>30) {
-                    setSync();
-                }
+                //if(abs(sync)>30) {
+                //    setSync();
+                //}
 
                 getMemPtr();
 
@@ -382,14 +296,6 @@ public class ManageObimon {
                     build = sendCmd("c");
                     if (build == null) Log.d("USB", "BUILD UNKNOWN");
                     else Log.d("USB", "BUILD " + build);
-                }
-
-                if(role == -1) {
-                    String s = sendCmd("R");
-                    Log.d("USB", "Role " + s);
-                    if(s!=null) {
-                        role = Integer.parseInt(s);
-                    }
                 }
 
             }
@@ -430,32 +336,35 @@ public class ManageObimon {
 
     }
 
-    void getSync() {
-        String ret = sendCmd("t");
-        if(ret==null) {
-            sync = -999999;
-            return;
-        }
-        String ss[] = ret.split(" ");
-        long now = System.currentTimeMillis() + myTestService.clockOffset;
-        sync=now -(long)(Long.parseLong(ss[0])/32.768);
-        Log.d("USB","Sync "+sync);
-    }
+//    void getSync() {
+//        String ret = sendCmd("t");
+//        if(ret==null) {
+//            sync = -999999;
+//            return;
+//        }
+//        String ss[] = ret.split(" ");
+//        long now = System.currentTimeMillis() + myTestService.clockOffset;
+//        sync=now -(long)(Long.parseLong(ss[0])/32.768);
+//        Log.d("USB","Sync "+sync);
+//    }
+//
+//    void setSync() {
+//        long now = System.currentTimeMillis() + myTestService.clockOffset ;
+//        long tt = (long) (now*32.768);
+//        String ret = sendCmd("t "+tt);
+//        Log.d("USB","SetSync "+ret);
+//    }
 
-    void setSync() {
-        long now = System.currentTimeMillis() + myTestService.clockOffset ;
-        long tt = (long) (now*32.768);
-        String ret = sendCmd("t "+tt);
-        Log.d("USB","SetSync "+ret);
-    }
-
-    void readMem2() {
+    void readMem() {
         if (getMemPtr() != 0) return;
 
         if (memptr == 65536) {
             mHandler.post(new ToastRunnable("Device is empty"));
             return;
         }
+
+        //List<SyncData> syncDataList = myTestService.obimonDatabase.syncDataDao().getSyncDataList();
+        //Log.d("DUMP2", "SyncData size "+syncDataList.size());
 
         Log.d("DUMP2", "Memptr "+(memptr-65536));
 
@@ -481,7 +390,7 @@ public class ManageObimon {
                 break;
             }
 
-            int l = 255;
+            int l = 128;
 
             if(db.b.length!=l) {
                 Log.d("DUMP2", "Wrong response "+db.b.length);
@@ -503,7 +412,7 @@ public class ManageObimon {
                 double rate = 1000.0 * n / dt;
                 double bps = 1000.0 * n * l * 8 / dt;
 
-                Log.d("DUMP2", "rate "+rate+" bps "+bps+" q "+queue.size());
+                Log.d("DUMP2", " rate "+rate+" bps "+bps+" q "+queue.size());
                 n=0;
                 statTime = System.currentTimeMillis();
 
@@ -543,6 +452,8 @@ public class ManageObimon {
 
         int n=0;
         long lastStat = System.currentTimeMillis();
+
+        dumpSession=0;
 
         for(int i=0; i<len; i+= 256) {
             byte[] b = new byte[256];
@@ -593,6 +504,37 @@ public class ManageObimon {
         sendEmail = true;
     }
 
+    long FindOffset(long sess, long ts) {
+        List<SyncData> syncDataList = myTestService.obimonDatabase.syncDataDao().getSyncDataList(sess);
+
+        int n=0;
+        long minoff=-1;
+        long ntpcorr = 0;
+
+        for(SyncData s : syncDataList) {
+            long tdiff = abs(s.getTs() - ts);
+
+            Log.d("DUMP2", "FindOffset sess="+sess+" ts="+ts+" tdiff="+tdiff+" off="+s.getOffset());
+
+            if(tdiff > 600*1000) {
+                continue;
+            }
+
+            if(ntpcorr == 0) ntpcorr = s.getNtpcorr();
+
+            n++;
+            if(minoff == -1 || s.getOffset() < minoff) minoff = s.getOffset();
+
+        }
+
+        Log.d("DUMP2", "FindOffset result " + minoff);
+
+        // now correct with ntp
+        minoff += ntpcorr;
+
+        return minoff;
+    }
+
     int parseDump(ByteBuffer block, PrintWriter out) {
 
         block.rewind();
@@ -608,11 +550,42 @@ public class ManageObimon {
         ts = (long) (ts/32.768);
         //Log.d("DUMP", " T:"+ts);
 
-        //ts += 1000000000;
+        int start = 8;
+
+        b = block.get(8) & 0x80;
+        if(b == 0) {
+            Log.d("DUMP", "OLD type, no session data");
+
+            dumpSession=0;
+            offset=0;
+
+        } else {
+            long l = block.getInt() & 0xffffffffL;
+
+            if(l!=dumpSession) {
+                dumpSession = l;
+
+                Log.d("DUMP", "Session: "+dumpSession+" device block ts="+ts);
+
+                // this is the first block for this session
+                offset = FindOffset(dumpSession, ts);
+
+                if(offset == -1) {
+                    // could not find offset in database
+                    offset = 0;
+                }
+            }
+
+            start += 4;
+        }
+
+
+
+        ts += offset;
 
         DateFormat formatter = new SimpleDateFormat("yyyy.MM.dd\tHH:mm:ss.SSS");
 
-        for(int i=8; i<256; i+=4) {
+        for(int i=start; i<256; i+=4) {
             int d = block.getInt();
 
             int acc = (d >> 24) & 0xff;
@@ -624,7 +597,7 @@ public class ManageObimon {
             String dateFormatted = formatter.format(date);
 
             //Log.d("DUMP", ""+dateFormatted+"\t"+ts+"\t"+g);
-            out.print(""+dateFormatted+"\t"+ts+"\t"+g+"\t"+acc+"\n");
+            out.print(""+dateFormatted+"\t"+ts+"\t"+g+"\t"+acc+"\t"+dumpSession+"\n");
 
             ts+=1000/8;
         }
