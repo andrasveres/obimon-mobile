@@ -7,6 +7,11 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanRecord;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -459,6 +464,27 @@ public class MyTestService  extends Service {
 
     }
 
+    private ScanCallback mScanCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            //Log.d(TAG, "onScanResult " + result);
+
+
+
+            parseScanData(result);
+
+            //super.onScanResult(callbackType, result);
+
+        }
+
+        @Override
+        public void onScanFailed(int errorCode) {
+            Log.d(TAG, "onScanFailed " + errorCode);
+
+            //super.onScanFailed(errorCode);
+        }
+    };
+
     void scanLeDevice(final boolean enable) {
         long SCAN_PERIOD = 10000;
 
@@ -475,352 +501,373 @@ public class MyTestService  extends Service {
             }, SCAN_PERIOD);
 */
 
-            mBluetoothAdapter.startLeScan(mLeScanCallback);
+            ScanFilter filter = new ScanFilter.Builder().build();
+            List<ScanFilter> filters = new ArrayList<ScanFilter>();
+            filters.add(filter);
+
+            ScanSettings settings = new ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .build();
+
+            //mBluetoothAdapter.getBluetoothLeScanner().startScan(mScanCallback);
+            mBluetoothAdapter.getBluetoothLeScanner().startScan(filters, settings, mScanCallback);
+            //mBluetoothAdapter.startLeScan(mLeScanCallback);
 
         } else {
-            mBluetoothAdapter.stopLeScan(mLeScanCallback);
+            mBluetoothAdapter.getBluetoothLeScanner().stopScan(mScanCallback);
+            //mBluetoothAdapter.stopLeScan(mLeScanCallback);
         }
     }
 
-    private BluetoothAdapter.LeScanCallback mLeScanCallback =
+    public void parseScanData(ScanResult scanResult) {
+
+        String TAG = "BtData";
+
+        // if not Microchip
+        String addr = scanResult.getDevice().getAddress();
+        if(!addr.startsWith("00:1E:C0"))
+            if(!addr.startsWith("00:06:66"))
+                if(!addr.startsWith("04:91:62")) {
+
+                    //Log.d("BLEMANU","New vendor "+addr);
+                    return;
+                }
+
+        ScanRecord scanRecord = scanResult.getScanRecord();
+        long rxTime = System.currentTimeMillis() -
+                SystemClock.elapsedRealtime() +
+                scanResult.getTimestampNanos() / 1000000;
+
+        BleAdvertisedData badata = BleUtil.parseAdertisedData(scanRecord.getBytes());
+
+        //if(device.getAddress().compareTo("00:1E:C0:30:FE:D1")==0) Log.d(TAG,"HHH "+device.getAddress());
+
+        // if does not have manufacturer specific data inside
+        if(badata.manufacturerSpecificBytes == null) return;
+
+        ObimonDevice obi=null;
+        if(!foundDevices.containsKey(addr)) {
+            Log.d(TAG,"New device "+addr);
+            obi = new ObimonDevice(MyTestService.this, scanResult.getDevice());
+            obi.connected();
+            foundDevices.put(addr, obi);
+
+            obi.color = ObiColors.colors[foundDevices.size() % ObiColors.colors.length];
+
+        } else {
+            obi = foundDevices.get(addr);
+        }
+
+        obi.signal = scanResult.getRssi();
+        obi.lastSeen = System.currentTimeMillis();
+
+        int len = badata.manufacturerSpecificBytes.length;
+
+        if(len<3) {
+            Log.e(TAG, "Wrong bt msg len");
+            return;
+        }
+
+        int msgType = badata.manufacturerSpecificBytes[0];
+
+        int n = 0;
+        for (int i = 1; i < 3; i++) {
+            n *= 256;
+            n += badata.manufacturerSpecificBytes[i] & 0x000000ff;
+        }
+
+        if(n == obi.lastId) {
+            Log.d(TAG, ""+obi.addr+" Already received "+obi.name+" "+n+" msgType "+msgType);
+            return;
+        }
+
+        obi.CalcLoss(n);
+
+        switch(msgType) {
+
+            // TS broadcast
+            case 0x55: {
+                obi.lastTsBroadcast = System.currentTimeMillis();
+
+
+
+                if(badata.manufacturerSpecificBytes.length!=11) {
+                    Log.e(TAG, "WRONG TS SIZE "+obi.addr+" "+obi.name+" "+badata.manufacturerSpecificBytes.length);
+                    break;
+                }
+
+                long ts = 0;
+                for (int i=3; i < 8+3; i++) {
+                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                    ts *= 256;
+                    ts += b;
+                }
+                ts *= 1000;
+
+                Log.d(TAG, "" + obi.addr + " TS BROADCAST "+ ts+ " ====================== ");
+
+                break;
+            }
+
+            // Session
+            case 0x60: {
+
+                if(badata.manufacturerSpecificBytes.length!=15) {
+                    Log.e(TAG, "WRONG SESSION SIZE "+obi.addr+" "+obi.name+" "+badata.manufacturerSpecificBytes.length);
+                    break;
+                }
+
+                long session=0;
+                for (int i=3; i < 4+3; i++) {
+                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                    session *= 256;
+                    session += b;
+                }
+
+                long ts = 0;
+                for (int i=7; i < 8+7; i++) {
+                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                    ts *= 256;
+                    ts += b;
+                }
+                ts /= 32.768;
+
+                long now = (rxTime + ntpCorr);
+                long offset = rxTime - ts;
+
+                Log.d(TAG, "" + obi.addr + " "+obi.name+" SESSION ts="+ ts+ " session="+session+" ====================== offset " +offset+" ntpcorr "+ntpCorr);
+
+                SyncData d = new SyncData(rxTime, addr, session, ts, offset, ntpCorr);
+                obimonDatabase.syncDataDao().insertSyncData(d);
+
+                obi.lastSessionSync = rxTime;
+
+
+                break;
+            }
+
+            // compact
+            case 0x14: {
+
+                //for(int j = 0; j<len; j++) Log.d(TAG, ""+obi.device.getAddress()+" MMM "+(Integer.toHexString(badata.manufacturerSpecificBytes[j] & 0x000000ff)));
+
+                int i = 3;
+                //     send("N,14%04x%02x%02x%02x%04x%s", nsent, apiversion, b, m, s, hexname);
+
+                int apiversion = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+                int bat = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+                int mem = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+
+                int syn1 = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+                int syn2 = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+                int sync = (syn2 + syn1 * 256);
+
+                obi.bat = bat / 10.0;
+                obi.mem = mem;
+
+                long now = (rxTime + ntpCorr);
+                long now_device = (long) (now * 32.768) / 1024;
+                long trimmed = now_device & 0x0000ffff;
+                Log.d(TAG, "" + addr + " " + now_device + " " + trimmed + " " + sync);
+
+                //double diff = (trimmed - sync) * 1024.0 / 32.768;
+
+                //obi.sync = diff;
+
+                String s = "";
+
+                for (; i < len; i++) {
+                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                    char c = (char) (b & 0xFF);
+                    if (c == 0) break;
+                    s += c;
+                }
+                obi.name = s;
+
+                s = "";
+                i++;
+                for (; i < len; i++) {
+                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                    char c = (char) (b & 0xFF);
+                    if (c == 0) break;
+                    s += c;
+                }
+                obi.group = s;
+
+                obi.series.setTitle(obi.name);
+                obi.seriesAcc.setTitle(obi.name+"_acc");
+
+                obi.apiversion = apiversion;
+
+                Log.d(TAG, "" + obi.addr + " COMPACT====================== " + n + " api:" + apiversion + " name:" + obi.name + " group:" + obi.group + " bat:" + bat + " mem:" + mem + " sync:" + sync);
+
+                //obi.AddData(n, gsr);
+                break;
+
+            }
+
+            // Uptime
+            case 0x15: {
+
+                //for(int j = 0; j<len; j++) Log.d(TAG, ""+obi.device.getAddress()+" MMM "+(Integer.toHexString(badata.manufacturerSpecificBytes[j] & 0x000000ff)));
+
+                int i = 3;
+                //     send("N,14%04x%02x%02x%02x%04x%s", nsent, apiversion, b, m, s, hexname);
+                int uptime = 0;
+                for (int j = 0; j < 4; j++) {
+                    uptime *= 256;
+                    uptime += badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+                }
+
+                int uptime_meas = 0;
+                for (int j = 0; j < 4; j++) {
+                    uptime_meas *= 256;
+                    uptime_meas += badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+                }
+
+                int lastbat = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+                int bat = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
+
+                obi.bat = bat / 10.0;
+
+                Log.d(TAG, "" + obi.addr + " UPTIME====================== " + n + " name:" + obi.name + " group:" + obi.group + " lastbat:" + lastbat + " bat:" + bat + " uptime:" + uptime + " uptime_meas:" + uptime_meas);
+
+                //obi.AddData(n, gsr);
+                break;
+
+            }
+
+            // name
+            case 0x12: {
+
+                //int apiversion = badata.manufacturerSpecificBytes[3] & 0x000000ff;
+
+                String s = "";
+
+                int i = 3;
+                for (; i < len; i++) {
+                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                    char c = (char) (b & 0xFF);
+                    if (c == 0) break;
+                    s += c;
+                }
+                obi.name = s;
+
+                s = "";
+                i++;
+                for (; i < len; i++) {
+                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                    char c = (char) (b & 0xFF);
+                    if (c == 0) break;
+                    s += c;
+                }
+                obi.group = s;
+
+                obi.series.setTitle(obi.name);
+                obi.seriesAcc.setTitle(obi.name+"_acc");
+
+                //obi.apiversion = apiversion;
+
+                Log.d(TAG, "" + obi.addr + " OBSOLETE NAME======================= " + n + " name:" + obi.name + " group:" + obi.group);
+
+                //obi.AddData(n, gsr);
+                break;
+
+            }
+
+            // build
+            case 0x13: {
+
+                String s = "";
+
+                for (int i = 3; i < len; i++) {
+                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                    char c = (char) (b & 0xFF);
+                    s += c;
+                }
+
+                obi.build = s;
+                //obi.series.setTitle(s);
+
+                Log.d(TAG, "" + obi.addr + " BUILD======================= " + n + " name:" + obi.name + " build:" + s);
+
+                //obi.AddData(n, gsr);
+                break;
+
+            }
+
+            // GSR data
+            case 0x22: {
+
+                int gsr = 0;
+                int acc= badata.manufacturerSpecificBytes[3] & 0x000000ff;
+                for (int i = 4; i < 7; i++) {
+                    gsr *= 256;
+                    gsr += badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                }
+
+                Log.d(TAG, "GSRDATA==== "+n+" "+gsr+" acc "+acc +" d_rxTime:"+(rxTime-obi.lastGsrTime));
+
+                obi.lastGsrTime = rxTime;
+
+                obi.AddData(rxTime, gsr, acc);
+                break;
+
+            }
+
+            // memory and time
+            case 0x11: {
+                obi.bat = badata.manufacturerSpecificBytes[3] / 10.0;
+
+                int memptr = 0;
+                for (int i = 4; i < 8; i++) {
+                    memptr *= 256;
+                    memptr += badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                }
+
+                int blocks = memptr / 256;
+                int total_blocks = 8 * 1024 * 1024 / 256;
+                int free_blocks = total_blocks - blocks;
+                int sec_per_block = (256 - 8) / 4 / 8;
+                int free_sec = free_blocks * sec_per_block;
+
+                obi.mem = free_sec;
+
+                long tick = 0;
+                for (int i = 8; i < 16; i++) {
+                    tick *= 256;
+                    tick += badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                }
+
+                long ts = (long) (tick / 32.768);
+
+                long now = System.currentTimeMillis() + ntpCorr;
+                //long d = ts - now;
+                //obi.sync = d;
+
+                Log.d(TAG, "" + obi.addr + " STAT " + obi.name + " ===== " + n + " " + obi.bat + " " + memptr + " " + tick + " " + ntpCorr);
+
+                //obi.AddData(n, gsr);
+
+                break;
+
+            }
+
+            default: {
+                Log.d(TAG, "UNKNOWN MSG "+obi.addr+" "+obi.name);
+            }
+        }
+    }
+
+/*    private BluetoothAdapter.LeScanCallback mLeScanCallback =
             new BluetoothAdapter.LeScanCallback() {
                 @Override
                 public void onLeScan(final BluetoothDevice device, int rssi,
                                      byte[] scanRecord) {
 
-                    String TAG = "BtData";
-
-                    // if not Microchip
-                    String addr = device.getAddress();
-                    if(!addr.startsWith("00:1E:C0"))
-                        if(!addr.startsWith("00:06:66"))
-                            if(!addr.startsWith("04:91:62")) {
-
-                                //Log.d("BLEMANU","New vendor "+addr);
-                                return;
-                        }
-
-                    BleAdvertisedData badata = BleUtil.parseAdertisedData(scanRecord);
-
-                    //if(device.getAddress().compareTo("00:1E:C0:30:FE:D1")==0) Log.d(TAG,"HHH "+device.getAddress());
-
-                    // if does not have manufacturer specific data inside
-                    if(badata.manufacturerSpecificBytes == null) return;
-
-                    ObimonDevice obi=null;
-                    if(!foundDevices.containsKey(addr)) {
-                        Log.d(TAG,"New device "+addr);
-                        obi = new ObimonDevice(MyTestService.this, device);
-                        obi.connected();
-                        foundDevices.put(addr, obi);
-
-                        obi.color = ObiColors.colors[foundDevices.size() % ObiColors.colors.length];
-
-                    } else {
-                        obi = foundDevices.get(addr);
-                    }
-
-                    obi.signal = rssi;
-                    obi.lastSeen = System.currentTimeMillis();
-
-                    int len = badata.manufacturerSpecificBytes.length;
-
-                    if(len<3) {
-                        Log.e(TAG, "Wrong bt msg len");
-                        return;
-                    }
-
-                    int msgType = badata.manufacturerSpecificBytes[0];
-
-                    int n = 0;
-                    for (int i = 1; i < 3; i++) {
-                        n *= 256;
-                        n += badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                    }
-
-                    if(n == obi.lastId) {
-                        Log.d(TAG, ""+obi.addr+" Already received "+obi.name+" "+n+" msgType "+msgType);
-                        return;
-                    }
-
-                    obi.CalcLoss(n);
-
-                    switch(msgType) {
-
-                        // TS broadcast
-                        case 0x55: {
-                            obi.lastTsBroadcast = System.currentTimeMillis();
-
-
-
-                            if(badata.manufacturerSpecificBytes.length!=11) {
-                                Log.e(TAG, "WRONG TS SIZE "+obi.addr+" "+obi.name+" "+badata.manufacturerSpecificBytes.length);
-                                break;
-                            }
-
-                            long ts = 0;
-                            for (int i=3; i < 8+3; i++) {
-                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                                ts *= 256;
-                                ts += b;
-                            }
-                            ts *= 1000;
-
-                            Log.d(TAG, "" + obi.addr + " TS BROADCAST "+ ts+ " ====================== ");
-
-                            break;
-                        }
-
-                        // Session
-                        case 0x60: {
-
-                            if(badata.manufacturerSpecificBytes.length!=15) {
-                                Log.e(TAG, "WRONG SESSION SIZE "+obi.addr+" "+obi.name+" "+badata.manufacturerSpecificBytes.length);
-                                break;
-                            }
-
-                            long session=0;
-                            for (int i=3; i < 4+3; i++) {
-                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                                session *= 256;
-                                session += b;
-                            }
-
-                            long ts = 0;
-                            for (int i=7; i < 8+7; i++) {
-                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                                ts *= 256;
-                                ts += b;
-                            }
-                            ts /= 32.768;
-
-                            long now = (System.currentTimeMillis() + ntpCorr);
-                            long offset = System.currentTimeMillis() - ts;
-
-                            Log.d(TAG, "" + obi.addr + " "+obi.name+" SESSION ts="+ ts+ " session="+session+" ====================== offset " +offset+" ntpcorr "+ntpCorr);
-
-                            SyncData d = new SyncData(System.currentTimeMillis(), addr, session, ts, offset, ntpCorr);
-                            obimonDatabase.syncDataDao().insertSyncData(d);
-
-                            obi.lastSessionSync = System.currentTimeMillis();
-
-
-                            break;
-                        }
-
-                        // compact
-                        case 0x14: {
-
-                            //for(int j = 0; j<len; j++) Log.d(TAG, ""+obi.device.getAddress()+" MMM "+(Integer.toHexString(badata.manufacturerSpecificBytes[j] & 0x000000ff)));
-
-                            int i = 3;
-                            //     send("N,14%04x%02x%02x%02x%04x%s", nsent, apiversion, b, m, s, hexname);
-
-                            int apiversion = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-                            int bat = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-                            int mem = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-
-                            int syn1 = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-                            int syn2 = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-                            int sync = (syn2 + syn1 * 256);
-
-                            obi.bat = bat / 10.0;
-                            obi.mem = mem;
-
-                            long now = (System.currentTimeMillis() + ntpCorr);
-                            long now_device = (long) (now * 32.768) / 1024;
-                            long trimmed = now_device & 0x0000ffff;
-                            Log.d(TAG, "" + addr + " " + now_device + " " + trimmed + " " + sync);
-
-                            //double diff = (trimmed - sync) * 1024.0 / 32.768;
-
-                            //obi.sync = diff;
-
-                            String s = "";
-
-                            for (; i < len; i++) {
-                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                                char c = (char) (b & 0xFF);
-                                if (c == 0) break;
-                                s += c;
-                            }
-                            obi.name = s;
-
-                            s = "";
-                            i++;
-                            for (; i < len; i++) {
-                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                                char c = (char) (b & 0xFF);
-                                if (c == 0) break;
-                                s += c;
-                            }
-                            obi.group = s;
-
-                            obi.series.setTitle(obi.name);
-                            obi.seriesAcc.setTitle(obi.name+"_acc");
-
-                            obi.apiversion = apiversion;
-
-                            Log.d(TAG, "" + obi.addr + " COMPACT====================== " + n + " api:" + apiversion + " name:" + obi.name + " group:" + obi.group + " bat:" + bat + " mem:" + mem + " sync:" + sync);
-
-                            //obi.AddData(n, gsr);
-                            break;
-
-                        }
-
-                        // Uptime
-                        case 0x15: {
-
-                            //for(int j = 0; j<len; j++) Log.d(TAG, ""+obi.device.getAddress()+" MMM "+(Integer.toHexString(badata.manufacturerSpecificBytes[j] & 0x000000ff)));
-
-                            int i = 3;
-                            //     send("N,14%04x%02x%02x%02x%04x%s", nsent, apiversion, b, m, s, hexname);
-                            int uptime = 0;
-                            for (int j = 0; j < 4; j++) {
-                                uptime *= 256;
-                                uptime += badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-                            }
-
-                            int uptime_meas = 0;
-                            for (int j = 0; j < 4; j++) {
-                                uptime_meas *= 256;
-                                uptime_meas += badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-                            }
-
-                            int lastbat = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-                            int bat = badata.manufacturerSpecificBytes[i++] & 0x000000ff;
-
-                            obi.bat = bat / 10.0;
-
-                            Log.d(TAG, "" + obi.addr + " UPTIME====================== " + n + " name:" + obi.name + " group:" + obi.group + " lastbat:" + lastbat + " bat:" + bat + " uptime:" + uptime + " uptime_meas:" + uptime_meas);
-
-                            //obi.AddData(n, gsr);
-                            break;
-
-                        }
-
-                        // name
-                        case 0x12: {
-
-                            //int apiversion = badata.manufacturerSpecificBytes[3] & 0x000000ff;
-
-                            String s = "";
-
-                            int i = 3;
-                            for (; i < len; i++) {
-                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                                char c = (char) (b & 0xFF);
-                                if (c == 0) break;
-                                s += c;
-                            }
-                            obi.name = s;
-
-                            s = "";
-                            i++;
-                            for (; i < len; i++) {
-                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                                char c = (char) (b & 0xFF);
-                                if (c == 0) break;
-                                s += c;
-                            }
-                            obi.group = s;
-
-                            obi.series.setTitle(obi.name);
-                            obi.seriesAcc.setTitle(obi.name+"_acc");
-
-                            //obi.apiversion = apiversion;
-
-                            Log.d(TAG, "" + obi.addr + " OBSOLETE NAME======================= " + n + " name:" + obi.name + " group:" + obi.group);
-
-                            //obi.AddData(n, gsr);
-                            break;
-
-                        }
-
-                        // build
-                        case 0x13: {
-
-                            String s = "";
-
-                            for (int i = 3; i < len; i++) {
-                                int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                                char c = (char) (b & 0xFF);
-                                s += c;
-                            }
-
-                            obi.build = s;
-                            //obi.series.setTitle(s);
-
-                            Log.d(TAG, "" + obi.addr + " BUILD======================= " + n + " name:" + obi.name + " build:" + s);
-
-                            //obi.AddData(n, gsr);
-                            break;
-
-                        }
-
-                        // GSR data
-                        case 0x22: {
-
-                            int gsr = 0;
-                            int acc= badata.manufacturerSpecificBytes[3] & 0x000000ff;
-                            for (int i = 4; i < 7; i++) {
-                                gsr *= 256;
-                                gsr += badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                            }
-
-                            Log.d(TAG, "GSRDATA==== "+n+" "+gsr+" acc "+acc);
-
-                            obi.lastGsrTime = System.currentTimeMillis();
-
-                            obi.AddData(n, gsr, acc);
-                            break;
-
-                        }
-
-                        // memory and time
-                        case 0x11: {
-                            obi.bat = badata.manufacturerSpecificBytes[3] / 10.0;
-
-                            int memptr = 0;
-                            for (int i = 4; i < 8; i++) {
-                                memptr *= 256;
-                                memptr += badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                            }
-
-                            int blocks = memptr / 256;
-                            int total_blocks = 8 * 1024 * 1024 / 256;
-                            int free_blocks = total_blocks - blocks;
-                            int sec_per_block = (256 - 8) / 4 / 8;
-                            int free_sec = free_blocks * sec_per_block;
-
-                            obi.mem = free_sec;
-
-                            long tick = 0;
-                            for (int i = 8; i < 16; i++) {
-                                tick *= 256;
-                                tick += badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                            }
-
-                            long ts = (long) (tick / 32.768);
-
-                            long now = System.currentTimeMillis() + ntpCorr;
-                            //long d = ts - now;
-                            //obi.sync = d;
-
-                            Log.d(TAG, "" + obi.addr + " STAT " + obi.name + " ===== " + n + " " + obi.bat + " " + memptr + " " + tick + " " + ntpCorr);
-
-                            //obi.AddData(n, gsr);
-
-                            break;
-
-                        }
-
-                        default: {
-                            Log.d(TAG, "UNKNOWN MSG "+obi.addr+" "+obi.name);
-                        }
-                    }
+                    parseScanData(device, rssi, scanRecord);
                 }
-            };
+            };*/
 
 
     private static final String ACTION_USB_PERMISSION =  "com.obimon.obimon_mobile.USB_PERMISSION";
@@ -929,6 +976,13 @@ public class MyTestService  extends Service {
             long lastNtpUpdate = 0;
 
             while(!stop) {
+
+                if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
+                    //Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                    //acstartActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+                    Log.e(TAG, "BT is not enabled!");
+                }
+
 
                 if(System.currentTimeMillis() - lastNtpUpdate >= 300000) {
 

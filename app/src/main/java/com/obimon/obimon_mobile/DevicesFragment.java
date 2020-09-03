@@ -57,15 +57,18 @@ public class DevicesFragment extends Fragment {
         @Override
         public void run() {
             Log.i(TAG, "Start UpdateThread");
+            stop = false;
 
             while(true) {
 
                 if(stop) {
-                    Log.i(TAG, "Stop UpdateThread");
+                    Log.i(TAG, "Stop UpdateThread "+stop);
                     break;
                 }
 
                 if(MyActivity.myTestService==null) return;
+
+                Log.d(TAG, "UpdateThread ...");
 
                 // add new devices to list
                 for(ObimonDevice obimon : MyActivity.myTestService.foundDevices.values()) {
@@ -129,7 +132,7 @@ public class DevicesFragment extends Fragment {
                     @Override
                     public void run() {
 
-                        Log.d(TAG, "call NotifyDatasetChanged");
+                        //Log.d(TAG, "call NotifyDatasetChanged");
 
                         listAdapter.notifyDataSetChanged();
                     }
@@ -181,14 +184,24 @@ public class DevicesFragment extends Fragment {
     }
 
     void StartUpdateThread() {
+        Log.d(TAG, "StartUpdateThread called "+updateThread);
+
         if(updateThread==null) {
+            Log.d(TAG, "...create new UpdateThread ");
+
             updateThread = new UpdateThread();
             updateThread.start();
         }
+
     }
 
     void StopUpdateThread() {
-        if(updateThread!=null) updateThread.stop=true;
+        Log.d(TAG, "StopUpdateThread called");
+        if(updateThread!=null) {
+            Log.d(TAG, "...initiate stop ");
+            updateThread.stop=true;
+        }
+
         updateThread=null;
     }
 
@@ -208,7 +221,7 @@ public class DevicesFragment extends Fragment {
         expListView.setAdapter(listAdapter);
         expListView.setGroupIndicator(null);
 
-        StartUpdateThread();
+        //StartUpdateThread();
 
         return rootView;
     }

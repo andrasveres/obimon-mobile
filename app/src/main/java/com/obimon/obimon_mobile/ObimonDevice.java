@@ -133,7 +133,7 @@ public class ObimonDevice {
         received++;
     }
 
-    void AddData(int id, double d, int acc) {
+    void AddData(long ts, double d, int acc) {
 
         double gsr = d / 1000.0;
 
@@ -155,8 +155,8 @@ public class ObimonDevice {
         if(MyActivity.adjustScl) v -= scl;
 
 
-        series.add(System.currentTimeMillis(), v);
-        seriesAcc.add(System.currentTimeMillis(), acc);
+        series.add(ts, v);
+        seriesAcc.add(ts, acc);
 
 
         //if(mWebSocketClient!=null)

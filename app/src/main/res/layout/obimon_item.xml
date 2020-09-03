@@ -41,12 +41,12 @@
         android:layout_alignParentStart="true" />
 
     <TextView
+        android:id="@+id/stat_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textAppearance="?android:attr/textAppearanceSmall"
-        android:text="Recvd/lost:"
-        android:id="@+id/stat_text"
-        android:layout_toStartOf="@+id/stat_value" />
+        android:layout_toStartOf="@+id/stat_value"
+        android:text="Recvd:"
+        android:textAppearance="?android:attr/textAppearanceSmall" />
 
     <TextView
         android:layout_width="wrap_content"
