@@ -15,6 +15,7 @@
   -->
 
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -49,24 +50,7 @@
 
         <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <Button
-                android:text="Group"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:id="@+id/manage_button_group" />
-
-            <TextView
-                android:text="group"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:id="@+id/manage_group"
-                android:layout_alignBaseline="@+id/manage_button_group"
-                android:layout_alignBottom="@+id/manage_button_group"
-                android:layout_alignParentEnd="true"
-                android:textAppearance="@style/TextAppearance.AppCompat.Large" />
-        </RelativeLayout>
+            android:layout_height="wrap_content"/>
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -142,12 +126,31 @@
                 android:id="@+id/textView12" />
 
             <TextView
-                android:text="TextView"
+                android:id="@+id/manage_obimon_version"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:id="@+id/manage_obimon_version"
                 android:layout_alignParentTop="true"
-                android:layout_alignParentEnd="true" />
+                android:layout_alignParentEnd="true"
+                android:text="-" />
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:text="Bluetooth version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:id="@+id/bversiontext" />
+
+            <TextView
+                android:id="@+id/manage_obimon_btversion"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentEnd="true"
+                android:text="-" />
         </RelativeLayout>
 
         <RelativeLayout
@@ -155,12 +158,12 @@
             android:layout_height="match_parent">
 
             <TextView
-                android:text="TextView"
+                android:id="@+id/manage_latest_version"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:id="@+id/manage_latest_version"
                 android:layout_alignParentTop="true"
-                android:layout_alignParentEnd="true" />
+                android:layout_alignParentEnd="true"
+                android:text="-" />
 
             <TextView
                 android:text="Latest version"

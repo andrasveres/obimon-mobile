@@ -2,9 +2,10 @@ package com.obimon.obimon_mobile;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Environment;
 import android.os.Handler;
-import android.support.v4.content.FileProvider;
-import android.support.v4.content.LocalBroadcastManager;
+import androidx.core.content.FileProvider;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -27,13 +28,13 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static com.obimon.obimon_mobile.ManageObimon.ManageState.CHANGE_GROUP;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.CHANGE_NAME;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.ERASE;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.IDLE;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.RESET;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.READMEM;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.UNCONNECTED;
+
 import static java.lang.Math.abs;
 
 /**
@@ -47,11 +48,12 @@ public class ManageObimon {
     //Context context=null;
 
     String name = null;
-    String group = null;
 
     // for post-sync
     long offset=0;
     long dumpSession=0;
+    long lastBlockTs=0;
+    long lastTs=0;
     int nSession=0;
 
     private Handler mHandler = new Handler();
@@ -68,6 +70,8 @@ public class ManageObimon {
 
     int apiversion=-1;
     String build=null;
+    String mac;
+    int btversion=0;
 
     int progress = 0;
 
@@ -256,11 +260,6 @@ public class ManageObimon {
                     state = IDLE;
                 }
 
-                if (state == CHANGE_GROUP) {
-                    Log.d("USB", "Change group: " + group);
-                    sendCmd("o " + group);
-                    state = IDLE;
-                }
 
                 if(state == UNCONNECTED) continue;
                 //getSync();
@@ -272,12 +271,6 @@ public class ManageObimon {
                 getMemPtr();
 
                 String ret;
-
-                if (group == null) {
-                    ret = sendCmd("o");
-                    group = ret;
-                    Log.d("USB", "GROUP " + ret);
-                }
 
                 if (name == null) {
                     ret = sendCmd("n");
@@ -297,6 +290,41 @@ public class ManageObimon {
                     if (build == null) Log.d("USB", "BUILD UNKNOWN");
                     else Log.d("USB", "BUILD " + build);
                 }
+
+
+                if(mac == null) {
+                    String macstr = sendCmd("M");
+                    if (macstr == null) {
+                        Log.d("USB", "MAC UNKNOWN");
+                        mac = "";
+                    } else {
+
+                        mac=macstr.substring(0,2);
+                        for(int i=2; i<12; i+=2) {
+                            mac+=":";
+                            mac+=macstr.substring(i,i+2);
+                        }
+
+                        Log.d("USB", "MAC " + macstr+"->"+mac);
+
+                    }
+
+                }
+
+                if(btversion==0) {
+                    String b = sendCmd("2");
+                    if (b == null) {
+                        Log.d("USB", "BTVERSION UKNKNOWN");
+                        btversion = -1;
+                    } else {
+                        try {
+                            btversion = Integer.parseInt(b);
+                            Log.d("USB", "BTVERSION " + btversion);
+                        } catch (NumberFormatException e) {};
+                    }
+
+                }
+
 
             }
         }
@@ -434,9 +462,17 @@ public class ManageObimon {
         Date now = new Date();
         String strDate = sdfDate.format(now);
 
-        String fname = name+"_"+group+"_"+strDate+".txt";
 
-        File file = new File(myTestService.getExternalCacheDir(), fname);
+        String fname = name+"_"+strDate+".txt";
+
+        File fdir = new File(myTestService.getCacheDir(), "obicache");
+        if(!fdir.exists()) fdir.mkdir();
+
+        //File file = new File(myTestService.getExternalCacheDir(), fname);
+
+        File file = new File(fdir, fname);
+
+        Log.d("MAIL", "File "+file.getAbsolutePath());
 
         PrintWriter out=null;
         try {
@@ -445,7 +481,10 @@ public class ManageObimon {
             e.printStackTrace();
         }
 
-        out.print(name+"\t"+group+"\n");
+        //out.print(name+"\t"+mac.substring(9)+"\n");
+        out.print(name+"\n");
+        out.print("session\tdate\ttime\tunix_ts\tnS\tacc\n");
+
 
         Log.d("PARSEDUMP", "Dumping memptr "+memptr);
         boolean err = false;
@@ -454,6 +493,9 @@ public class ManageObimon {
         long lastStat = System.currentTimeMillis();
 
         dumpSession=0;
+        nSession=0;
+        lastBlockTs=0;
+        lastTs=0;
 
         for(int i=0; i<len; i+= 256) {
             byte[] b = new byte[256];
@@ -493,13 +535,16 @@ public class ManageObimon {
                 "com.obimon.obimon_mobile.provider",
                 file);
 
+        Log.d("MAIL", "Path "+fileURI.getPath());
+
+        emailIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); //?
+        emailIntent.setData(fileURI);
+
         //emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(file));
         emailIntent.putExtra(Intent.EXTRA_STREAM, fileURI);
 
         // You can also attach multiple items by passing an ArrayList of Uris
-        emailIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        //MyActivity.context.startActivity(Intent.createChooser(emailIntent, "Your email id"));
-        //MyActivity.context.startActivity(emailIntent);
+        //emailIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
         sendEmail = true;
     }
@@ -508,31 +553,40 @@ public class ManageObimon {
         List<SyncData> syncDataList = myTestService.obimonDatabase.syncDataDao().getSyncDataList(sess);
 
         int n=0;
-        long minoff=-1;
-        long ntpcorr = 0;
+        long mindiff=0;
+
+        SyncData mins = null;
 
         for(SyncData s : syncDataList) {
             long tdiff = abs(s.getTs() - ts);
 
-            Log.d("DUMP2", "FindOffset sess="+sess+" ts="+ts+" tdiff="+tdiff+" off="+s.getOffset());
-
-            if(tdiff > 600*1000) {
-                continue;
+            if(mins==null) {
+                mins = s;
+                mindiff = tdiff;
             }
 
-            if(ntpcorr == 0) ntpcorr = s.getNtpcorr();
 
-            n++;
-            if(minoff == -1 || s.getOffset() < minoff) minoff = s.getOffset();
+            if(tdiff < mindiff ) {
+                mins = s;
+                mindiff = tdiff;
+            }
+
+            Log.d("DUMP2", "FindOffset sess="+sess+" devts="+s.getTs()+" tdiff="+tdiff+" off="+s.getOffset());
+
+            //if(tdiff > 600*1000) {
+            //    continue;
+            //}
 
         }
 
-        Log.d("DUMP2", "FindOffset result " + minoff);
+        if(mins == null) return 0;
+
+        Log.d("DUMP2", "FindOffset result devts=" + mins.getTs() + " offset:"+mins.getOffset());
 
         // now correct with ntp
-        minoff += ntpcorr;
+        long off = mins.getOffset() + mins.getNtpcorr();
 
-        return minoff;
+        return off;
     }
 
     int parseDump(ByteBuffer block, PrintWriter out) {
@@ -545,18 +599,19 @@ public class ManageObimon {
 
         if(b==254) Log.d("DUMP", "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 
-        long ts = block.getLong();
+        long ts = block.getLong(); // read 8 bytes
 
         ts = (long) (ts/32.768);
         //Log.d("DUMP", " T:"+ts);
 
         int start = 8;
 
-        b = block.get(8) & 0x80;
+        b = block.get(8+3) & 0x80; //Little endian! So read last byte
         if(b == 0) {
-            Log.d("DUMP", "OLD type, no session data");
+            Log.d("DUMP", "OLD type, no session data "+Integer.toHexString(b & 0xFF));
 
             dumpSession=0;
+            nSession=0;
             offset=0;
 
         } else {
@@ -564,6 +619,10 @@ public class ManageObimon {
 
             if(l!=dumpSession) {
                 dumpSession = l;
+            }
+
+            if(Math.abs(lastTs - ts)>=1000) {
+                nSession++;
 
                 Log.d("DUMP", "Session: "+dumpSession+" device block ts="+ts);
 
@@ -579,9 +638,7 @@ public class ManageObimon {
             start += 4;
         }
 
-
-
-        ts += offset;
+        lastBlockTs = ts;
 
         DateFormat formatter = new SimpleDateFormat("yyyy.MM.dd\tHH:mm:ss.SSS");
 
@@ -593,13 +650,17 @@ public class ManageObimon {
 
             if(g == 0xffffff || g==0) continue; //ffffff
 
-            Date date = new Date(ts);
+            long ts_corrected = ts + offset;
+
+            Date date = new Date(ts_corrected);
             String dateFormatted = formatter.format(date);
 
             //Log.d("DUMP", ""+dateFormatted+"\t"+ts+"\t"+g);
-            out.print(""+dateFormatted+"\t"+ts+"\t"+g+"\t"+acc+"\t"+dumpSession+"\n");
+            out.print(""+nSession+"\t"+dateFormatted+"\t"+ts_corrected+"\t"+g+"\t"+acc+"\n");
 
             ts+=1000/8;
+
+            lastTs = ts;
         }
 
         //b+=64;

@@ -1,6 +1,5 @@
 package com.obimon.obimon_mobile;
 
-import android.Manifest;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
@@ -26,27 +25,24 @@ import android.hardware.usb.UsbRequest;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.SystemClock;
-import android.support.v4.content.LocalBroadcastManager;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.felhr.usbserial.CDCSerialDevice;
-import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
 
 import org.achartengine.model.XYSeries;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.obimon.obimon_mobile.ManageObimon.BROADCAST_REFRESH;
 import static com.obimon.obimon_mobile.MyActivity.*;
+import static com.obimon.obimon_mobile.ObimonDevice.ACTION_GATT_CONNECTED;
 
 /**
  * Created by andrasveres on 22/03/15.
@@ -59,7 +55,7 @@ public class MyTestService  extends Service {
 
     DataSet dataSet = new DataSet();
 
-    public ConcurrentHashMap<String, ObimonDevice> foundDevices = new ConcurrentHashMap<>();
+    public ConcurrentHashMap<String, ObimonDevice> foundDevices = new ConcurrentHashMap<String, ObimonDevice>();
 
     boolean stop=false;
 
@@ -71,6 +67,7 @@ public class MyTestService  extends Service {
     private Handler mHandler;
     BluetoothAdapter mBluetoothAdapter;
     BluetoothLeScanner mLEScanner;
+    BluetoothManager mBluetoothManager;
 
     UsbDeviceConnection usbConnection;
     UsbManager usbManager;
@@ -79,6 +76,8 @@ public class MyTestService  extends Service {
     boolean resetAfterProgramming = false;
     boolean programmingInProgress = false;
     int programmingPercentage = 0;
+
+    boolean otaInProgress = false;
 
     // BOOTLOADER HID
     UsbEndpoint usbEndpointRead = null;
@@ -180,10 +179,16 @@ public class MyTestService  extends Service {
 
         //mHandler = new Handler();
 
+        IntentFilter notificationFilter = new IntentFilter(STOPACTION);
+        registerReceiver(broadcastReceiver, notificationFilter);
+
         // Initializes Bluetooth adapter.
-        final BluetoothManager bluetoothManager =
-                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        mBluetoothAdapter = bluetoothManager.getAdapter();
+        mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = mBluetoothManager.getAdapter();
+
+        IntentFilter bleFilter = new IntentFilter(ACTION_GATT_CONNECTED);
+        //bleFilter.addAction(ACTION_GATT_CONNECTED);
+        registerReceiver(mBleReceiver, bleFilter);
 
         scanLeDevice(true);
 
@@ -199,6 +204,7 @@ public class MyTestService  extends Service {
         //filter.addAction("android.hardware.usb.action.USB_DEVICE_DETACHED");
         registerReceiver(mUsbReceiver, filter);
         Log.d("USB", "RegisterReceiver");
+
 
         checkUSBDevices();
 
@@ -380,12 +386,13 @@ public class MyTestService  extends Service {
         // WRITE ================
         int bufferDataLength = usbEndpointWrite.getMaxPacketSize();
 
-        //Log.d("BL", "MaxPacketSize "+bufferDataLength);
+        Log.d("BL", "MaxPacketSize "+bufferDataLength+" bufferDataLength "+bufferDataLength);
 
         UsbRequest request = new UsbRequest();
 
         request.initialize(connectionWrite, usbEndpointWrite);
         request.queue(buffer, bufferDataLength);
+
         try
         {
             UsbRequest resp = connectionWrite.requestWait();
@@ -437,7 +444,6 @@ public class MyTestService  extends Service {
         }
 
         manageObimon.name = null;
-        manageObimon.group = null;
         manageObimon.apiversion = -1;
 
     }
@@ -468,8 +474,6 @@ public class MyTestService  extends Service {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             //Log.d(TAG, "onScanResult " + result);
-
-
 
             parseScanData(result);
 
@@ -519,6 +523,8 @@ public class MyTestService  extends Service {
         }
     }
 
+
+
     public void parseScanData(ScanResult scanResult) {
 
         String TAG = "BtData";
@@ -549,7 +555,7 @@ public class MyTestService  extends Service {
         if(!foundDevices.containsKey(addr)) {
             Log.d(TAG,"New device "+addr);
             obi = new ObimonDevice(MyTestService.this, scanResult.getDevice());
-            obi.connected();
+            //obi.connected();
             foundDevices.put(addr, obi);
 
             obi.color = ObiColors.colors[foundDevices.size() % ObiColors.colors.length];
@@ -557,6 +563,44 @@ public class MyTestService  extends Service {
         } else {
             obi = foundDevices.get(addr);
         }
+
+        if(obi.connectionState == ObimonDevice.ConnectionState.IDLE) {
+            if(obi.selected){
+            // if(addr.endsWith("D0")) {
+            //    if(addr.endsWith("FE:DD")) {
+
+                    //if(addr.endsWith("FE:C3")) {
+
+                if(scanResult.isConnectable() == true) {
+                    Log.d("BBB", "CONNECTABLE "+addr);
+                } else {
+                    Log.d("BBB", "NOT CONNECTABLE "+addr);
+                }
+
+                Log.d("BBB", "Start connect "+addr);
+
+                obi.connectionState = ObimonDevice.ConnectionState.CONNECTING;
+
+                try {
+                    Thread.sleep(250);
+                } catch (InterruptedException e) {}
+
+                BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(addr);
+
+                if(device == null) {
+                    Log.d("BBB", "Device not available "+addr);
+                } else {
+                    obi.mBluetoothGatt = device.connectGatt(this, true, obi.mGattCallback);
+                }
+            }
+        }
+
+
+        if(obi.selected == false && obi.connectionState == ObimonDevice.ConnectionState.CONNECTED) {
+            Log.d("BBB", "Disconnect "+addr);
+            if(obi.mBluetoothGatt!=null) obi.mBluetoothGatt.disconnect();
+        }
+
 
         obi.signal = scanResult.getRssi();
         obi.lastSeen = System.currentTimeMillis();
@@ -617,31 +661,28 @@ public class MyTestService  extends Service {
                     break;
                 }
 
-                long session=0;
-                for (int i=3; i < 4+3; i++) {
+
+                long session=ParseSession(badata.manufacturerSpecificBytes, 3);
+                /*for (int i=3; i < 4+3; i++) {
                     int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
                     session *= 256;
                     session += b;
-                }
+                }*/
+                obi.session = session;
 
-                long ts = 0;
-                for (int i=7; i < 8+7; i++) {
-                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                    ts *= 256;
-                    ts += b;
-                }
-                ts /= 32.768;
+                long ts = ParseTick(badata.manufacturerSpecificBytes,7);
 
-                long now = (rxTime + ntpCorr);
                 long offset = rxTime - ts;
 
                 Log.d(TAG, "" + obi.addr + " "+obi.name+" SESSION ts="+ ts+ " session="+session+" ====================== offset " +offset+" ntpcorr "+ntpCorr);
 
-                SyncData d = new SyncData(rxTime, addr, session, ts, offset, ntpCorr);
-                obimonDatabase.syncDataDao().insertSyncData(d);
+                //     void SaveSessionData(ObimonDevice obi, long t, long session, long device_t, long offset) {
 
-                obi.lastSessionSync = rxTime;
+                SaveSessionData(obi, rxTime, session, ts, offset);
 
+                //SyncData d = new SyncData(rxTime, addr, session, ts, offset, ntpCorr);
+                //obimonDatabase.syncDataDao().insertSyncData(d);
+                // obi.lastSessionSync = rxTime;
 
                 break;
             }
@@ -674,6 +715,10 @@ public class MyTestService  extends Service {
 
                 //obi.sync = diff;
 
+                String s = ParseName(badata.manufacturerSpecificBytes, len-i, i);
+                obi.name = s;
+
+                /*
                 String s = "";
 
                 for (; i < len; i++) {
@@ -683,23 +728,14 @@ public class MyTestService  extends Service {
                     s += c;
                 }
                 obi.name = s;
-
-                s = "";
-                i++;
-                for (; i < len; i++) {
-                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                    char c = (char) (b & 0xFF);
-                    if (c == 0) break;
-                    s += c;
-                }
-                obi.group = s;
+*/
 
                 obi.series.setTitle(obi.name);
                 obi.seriesAcc.setTitle(obi.name+"_acc");
 
                 obi.apiversion = apiversion;
 
-                Log.d(TAG, "" + obi.addr + " COMPACT====================== " + n + " api:" + apiversion + " name:" + obi.name + " group:" + obi.group + " bat:" + bat + " mem:" + mem + " sync:" + sync);
+                Log.d(TAG, "" + obi.addr + " COMPACT====================== " + n + " api:" + apiversion + " name:" + obi.name + " bat:" + bat + " mem:" + mem + " sync:" + sync);
 
                 //obi.AddData(n, gsr);
                 break;
@@ -730,7 +766,7 @@ public class MyTestService  extends Service {
 
                 obi.bat = bat / 10.0;
 
-                Log.d(TAG, "" + obi.addr + " UPTIME====================== " + n + " name:" + obi.name + " group:" + obi.group + " lastbat:" + lastbat + " bat:" + bat + " uptime:" + uptime + " uptime_meas:" + uptime_meas);
+                Log.d(TAG, "" + obi.addr + " UPTIME====================== " + n + " name:" + obi.name + " lastbat:" + lastbat + " bat:" + bat + " uptime:" + uptime + " uptime_meas:" + uptime_meas);
 
                 //obi.AddData(n, gsr);
                 break;
@@ -753,22 +789,12 @@ public class MyTestService  extends Service {
                 }
                 obi.name = s;
 
-                s = "";
-                i++;
-                for (; i < len; i++) {
-                    int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
-                    char c = (char) (b & 0xFF);
-                    if (c == 0) break;
-                    s += c;
-                }
-                obi.group = s;
-
                 obi.series.setTitle(obi.name);
                 obi.seriesAcc.setTitle(obi.name+"_acc");
 
                 //obi.apiversion = apiversion;
 
-                Log.d(TAG, "" + obi.addr + " OBSOLETE NAME======================= " + n + " name:" + obi.name + " group:" + obi.group);
+                Log.d(TAG, "" + obi.addr + " OBSOLETE NAME======================= " + n + " name:" + obi.name);
 
                 //obi.AddData(n, gsr);
                 break;
@@ -799,18 +825,24 @@ public class MyTestService  extends Service {
             // GSR data
             case 0x22: {
 
-                int gsr = 0;
-                int acc= badata.manufacturerSpecificBytes[3] & 0x000000ff;
-                for (int i = 4; i < 7; i++) {
-                    gsr *= 256;
-                    gsr += badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                int acc = ParseAcc(badata.manufacturerSpecificBytes, 3);
+                int gsr = ParseGsr(badata.manufacturerSpecificBytes, 4);
+
+                //int gsr = 0;
+                //int acc= badata.manufacturerSpecificBytes[3] & 0x000000ff;
+                //for (int i = 4; i < 7; i++) {
+                //    gsr *= 256;
+                //    gsr += badata.manufacturerSpecificBytes[i] & 0x000000ff;
+                //}
+
+                // only add adv data is there is no data from connection
+                if(System.currentTimeMillis() - obi.lastCharacteristics > 1000) {
+                    Log.d(TAG, "GSRDATA==== "+addr+" "+n+" "+gsr+" acc "+acc +" d_rxTime:"+(rxTime-obi.lastGsrTime));
+
+                    obi.lastGsrTime = System.currentTimeMillis();
+                    obi.AddData(rxTime, gsr, acc);
                 }
 
-                Log.d(TAG, "GSRDATA==== "+n+" "+gsr+" acc "+acc +" d_rxTime:"+(rxTime-obi.lastGsrTime));
-
-                obi.lastGsrTime = rxTime;
-
-                obi.AddData(rxTime, gsr, acc);
                 break;
 
             }
@@ -859,6 +891,63 @@ public class MyTestService  extends Service {
         }
     }
 
+    void SaveSessionData(ObimonDevice obi, long t, long session, long device_t, long offset) {
+        SyncData d = new SyncData(t, obi.addr, session, device_t, offset, ntpCorr);
+        obimonDatabase.syncDataDao().insertSyncData(d);
+
+        obi.lastSessionSync = t;
+    }
+
+    String ParseName(byte[] buf, int len, int offset) {
+        String s = "";
+
+        for (i=0; i < len; i++) {
+            int b = buf[i+offset] & 0x000000ff;
+            char c = (char) (b & 0xFF);
+            if (c == 0) break;
+            s += c;
+        }
+        return s;
+    }
+
+    long ParseSession(byte[] buf, int offset) {
+        long session=0;
+        for (int i=0; i < 4; i++) {
+            int b = buf[i+offset] & 0x000000ff;
+            session *= 256;
+            session += b;
+        }
+        return session;
+    }
+
+    long ParseTick(byte[] buf, int offset) {
+        long ts = 0;
+        for (int i=0; i < 8; i++) {
+            int b = buf[i+offset] & 0x000000ff;
+            ts *= 256;
+            ts += b;
+        }
+        ts /= 32.768;
+
+        return ts;
+    }
+
+    int ParseAcc(byte[] buf, int offset) {
+        int acc= buf[offset] & 0x000000ff;
+        return acc;
+    }
+
+    int ParseGsr(byte[] buf, int offset) {
+        int gsr = 0;
+
+        for (int i = 0; i < 3; i++) {
+            gsr *= 256;
+            gsr += buf[i+offset] & 0x000000ff;
+        }
+
+        return gsr;
+    }
+
 /*    private BluetoothAdapter.LeScanCallback mLeScanCallback =
             new BluetoothAdapter.LeScanCallback() {
                 @Override
@@ -870,11 +959,37 @@ public class MyTestService  extends Service {
             };*/
 
 
+
+    private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d("BRC","Received");
+        }
+    };
+
+
+
+    private final BroadcastReceiver mBleReceiver = new BroadcastReceiver() {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+
+            Log.d("BBB", "mBleReceiver received: "+action);
+
+            if(ACTION_GATT_CONNECTED.equals(action)) {
+                Log.d("BBB", "ACTION_GATT_CONNECTED");
+            }
+        }
+    };
+
     private static final String ACTION_USB_PERMISSION =  "com.obimon.obimon_mobile.USB_PERMISSION";
     private final BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
 
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
+
+
 
             Log.d("USB", "Action: "+action);
 
@@ -919,9 +1034,10 @@ public class MyTestService  extends Service {
                 manageObimon.state = ManageObimon.ManageState.UNCONNECTED;
 
                 manageObimon.name=null;
-                manageObimon.group=null;
                 manageObimon.apiversion=-1;
                 manageObimon.build=null;
+                manageObimon.btversion=0;
+                manageObimon.mac=null;
 
                 manageObimon.stopThread();
             }
@@ -937,6 +1053,8 @@ public class MyTestService  extends Service {
         stop = true;
 
         unregisterReceiver(mUsbReceiver);
+        unregisterReceiver(mBleReceiver);
+        unregisterReceiver(broadcastReceiver);
 
         scanLeDevice(false);
 
@@ -967,6 +1085,8 @@ public class MyTestService  extends Service {
         boolean stop = false;
         long timeDiff=-1;
 
+        long lastScanStart=System.currentTimeMillis();
+
         public TimeThread() {
         }
 
@@ -975,14 +1095,14 @@ public class MyTestService  extends Service {
 
             long lastNtpUpdate = 0;
 
+
             while(!stop) {
 
-                if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
-                    //Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                    //acstartActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-                    Log.e(TAG, "BT is not enabled!");
+                if(System.currentTimeMillis() - lastScanStart > 60000) {
+                    scanLeDevice(true);
+                    lastScanStart = System.currentTimeMillis();
+                    Log.d("BBB", "RESTART SCAN every 1 minutes");
                 }
-
 
                 if(System.currentTimeMillis() - lastNtpUpdate >= 300000) {
 

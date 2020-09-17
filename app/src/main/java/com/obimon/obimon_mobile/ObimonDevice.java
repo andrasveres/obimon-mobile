@@ -6,10 +6,16 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattServer;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.TextView;
 
@@ -34,8 +40,16 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+//import java.util.Queue;
+import java.util.Queue;
 import java.util.UUID;
+
+import static android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT32;
+import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_INDICATE;
+import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_NOTIFY;
+import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_READ;
 
 //import de.tavendo.autobahn.WebSocketConnection;
 //import de.tavendo.autobahn.WebSocketException;
@@ -45,11 +59,25 @@ import java.util.UUID;
  * Created by andrasveres on 04/04/15.
  */
 public class ObimonDevice {
+    public BluetoothGattCharacteristic gattCharacteristic_gsr;
+    public BluetoothGattCharacteristic gattCharacteristic_name;
+    public BluetoothGattCharacteristic gattCharacteristic_tick;
+
+    private Queue<Runnable> commandQueue = new LinkedList<>();
+    private boolean commandQueueBusy;
+    Handler bleHandler = new Handler();
+
+    int nrTries=0;
+    boolean isRetrying=false;
+    int MAX_TRIES = 10;
+
     String TAG = "ObimonDevice";
 
     BluetoothDevice device;
+    BluetoothGatt mBluetoothGatt;
+
     String addr=null;
-    String name="wait", build="wait", group="wait";
+    String name="wait", build="wait";
     int apiversion=-1;
     int color;
 
@@ -59,7 +87,6 @@ public class ObimonDevice {
     WebSocketClient mWebSocketClient;
 
     HousekeepingThread housekeepingThread;
-    BluetoothGatt mGatt;
 
 
     ConnectionState connectionState=ConnectionState.IDLE;
@@ -80,12 +107,14 @@ public class ObimonDevice {
     long lastTsBroadcast = 0;
     long lastSeen=0;
     long lastGsrTime =0;
+    long lastCharacteristics =0;
+    long session=0;
 
     double lastGsr=0;
     double scl=0;
 
-    double bat=0;
-    int mem=0;
+    double bat=-1;
+    int mem=-1;
     int signal=0;
     long lastSessionSync=0;
 
@@ -96,14 +125,16 @@ public class ObimonDevice {
     void stopObimonDevice() {
 
         Log.d(TAG, "stopObimonDevice: ");
-        if(mGatt!=null) {
-            mGatt.close();
-            mGatt=null;
+        if(mBluetoothGatt!=null) {
+            mBluetoothGatt.close();
+            mBluetoothGatt=null;
         }
-        connectionState = ConnectionState.IDLE;
+        //connectionState = ConnectionState.IDLE;
         series.clear();
         seriesAcc.clear();
     }
+
+
 
     ObimonDevice(MyTestService service, BluetoothDevice device) {
         this.device = device;
@@ -173,19 +204,7 @@ public class ObimonDevice {
   */      //Log.i("XXXX", "AddData called "+d+" x:"+x);
     }
 
-    /*
-    public void connectObimon() {
-        Log.i("XXXX", "ConnectObimon " + name);
 
-        connectionState = ConnectionState.CONNECTING;
-
-        if (mGatt == null) {
-            // autoconnect as soon as device is available
-            mGatt = device.connectGatt(myTestService, true, gattCallback);
-        }
-
-    }
-*/
 
     void connected() {
         connectionState = ConnectionState.CONNECTED;
@@ -388,6 +407,360 @@ public class ObimonDevice {
             mWSConnection.sendTextMessage(s);
     }
 */
+
+    void enableNotification(BluetoothGattCharacteristic c) {
+
+        if(mBluetoothGatt == null) {
+            Log.e("BBB", "ERROR: Gatt is 'null', ignoring read request");
+            return;
+        }
+
+        // Check if characteristic is valid
+        if(c == null) {
+            Log.e("BBB", "ERROR: Characteristic is 'null', ignoring read request");
+            return;
+        }
+
+        Log.d("BBB", "enableNotification "+addr+" "+c.getUuid());
+
+        boolean res = mBluetoothGatt.setCharacteristicNotification(c, true);
+        Log.d("BBB", "setCharacteristicNotification " + res);
+
+        List<BluetoothGattDescriptor> descriptors = c.getDescriptors();
+        for (BluetoothGattDescriptor d : descriptors) {
+            Log.d("BBB", "desc " + d.getUuid());
+            d.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+            res = mBluetoothGatt.writeDescriptor(d);
+
+            Log.d("BBB", "setCharacteristicNotification write desc " + res);
+
+            if(res) {
+                Log.d("BBB", "setCharacteristicNotification write desc SUCCESS " +addr);
+                return;
+            }
+        }
+
+
+        Log.d("BBB", "enableNotification FAILED " +addr);
+
+    }
+
+    public boolean setNotify(final BluetoothGattCharacteristic characteristic, final boolean enable) {
+        Log.d("BBB", "setNotify");
+
+        // Check if characteristic is valid
+
+        // Queue Runnable to turn on/off the notification now that all checks have been passed
+        boolean result = commandQueue.add(new Runnable() {
+            @Override
+            public void run() {
+                enableNotification(characteristic);
+            }
+        });
+
+        if(result) {
+            nextCommand();
+        } else {
+            Log.e("BBB", "ERROR: Could not enqueue write command");
+        }
+
+        return result;
+    }
+
+    public boolean readCharacteristic(final BluetoothGattCharacteristic characteristic) {
+        Log.d("BBB", "readCharacteristic "+addr);
+
+        if(mBluetoothGatt == null) {
+            Log.e("BBB", "ERROR: Gatt is 'null', ignoring read request");
+            return false;
+        }
+
+        // Check if characteristic is valid
+        if(characteristic == null) {
+            Log.e("BBB", "ERROR: Characteristic is 'null', ignoring read request");
+            return false;
+        }
+
+        // Check if this characteristic actually has READ property
+        if((characteristic.getProperties() & PROPERTY_READ) == 0 ) {
+            Log.e("BBB", "ERROR: Characteristic cannot be read");
+            return false;
+        }
+
+        // Enqueue the read command now that all checks have been passed
+        boolean result = commandQueue.add(new Runnable() {
+            @Override
+            public void run() {
+                if(!mBluetoothGatt.readCharacteristic(characteristic)) {
+                    Log.e("BBB", String.format("ERROR: readCharacteristic failed for characteristic: %s", characteristic.getUuid()));
+                    completedCommand();
+                } else {
+                    Log.d("BBB", String.format("reading characteristic <%s>", characteristic.getUuid()));
+                    nrTries++;
+                }
+            }
+        });
+
+        if(result) {
+            nextCommand();
+        } else {
+            Log.e("BBB", "ERROR: Could not enqueue read characteristic command");
+        }
+        return result;
+    }
+
+
+    private void nextCommand() {
+        // If there is still a command being executed then bail out
+        if(commandQueueBusy) {
+            //Log.d("BBB", "commandqueue busy "+addr);
+            return;
+        }
+
+        // Check if we still have a valid gatt object
+        if (mBluetoothGatt == null) {
+            Log.e("BBB", String.format("ERROR: GATT is 'null' for peripheral '%s', clearing command queue", addr));
+            commandQueue.clear();
+            commandQueueBusy = false;
+            return;
+        }
+
+        // Execute the next command in the queue
+        if (commandQueue.size() > 0) {
+            final Runnable bluetoothCommand = commandQueue.peek();
+            commandQueueBusy = true;
+            nrTries = 0;
+
+            bleHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        bluetoothCommand.run();
+                    } catch (Exception ex) {
+                        Log.e("BBB", String.format("ERROR: Command exception for device '%s'", addr), ex);
+                    }
+                }
+            });
+        }
+    }
+
+    private void completedCommand() {
+        commandQueueBusy = false;
+        isRetrying = false;
+        commandQueue.poll();
+        nextCommand();
+    }
+
+    private void retryCommand() {
+        commandQueueBusy = false;
+        Runnable currentCommand = commandQueue.peek();
+        if(currentCommand != null) {
+            if (nrTries >= MAX_TRIES) {
+                // Max retries reached, give up on this one and proceed
+                Log.v("BBB", "Max number of tries reached");
+                commandQueue.poll();
+            } else {
+                isRetrying = true;
+            }
+        }
+        nextCommand();
+    }
+
+
+
+    public final static String ACTION_GATT_CONNECTED = "com.obimon.obimon_mobile.ACTION_GATT_CONNECTED";
+    //get callbacks when something changes
+    BluetoothGattCallback mGattCallback=new BluetoothGattCallback() {
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+
+            if(status != BluetoothGatt.GATT_SUCCESS) {
+                Log.d("BBB", "gatt conn FAILED "+addr);
+
+                // obi.connectionState = ObimonDevice.ConnectionState.IDLE;
+
+                return;
+
+            }
+
+            if (newState== BluetoothProfile.STATE_CONNECTED){
+                //device connected
+                connectionState = ObimonDevice.ConnectionState.CONNECTED;
+
+                Log.d("BBB", "STATE_CONNECTED "+addr);
+
+                //final Intent intent = new Intent(ACTION_GATT_CONNECTED);
+                //sendBroadcast(intent);
+
+                try {
+                    Thread.sleep(250);
+                } catch (InterruptedException e) {}
+
+                mBluetoothGatt.discoverServices();
+
+            } else if(newState == BluetoothProfile.STATE_DISCONNECTED) {
+                Log.d("BBB", "STATE_DISCONNECTED "+addr);
+
+                connectionState = ObimonDevice.ConnectionState.IDLE;
+
+            } else {
+                Log.d("BBB", "XXXXXXXXX "+addr);
+            }
+        }
+
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+
+            if (status==BluetoothGatt.GATT_SUCCESS){
+                //all Services have been discovered
+
+
+                Log.d("BBB", "onServicesDiscovered "+addr);
+
+                // 43974957348793475977654321987654
+                UUID serviceUUID =  UUID.fromString("43974957-3487-9347-5977-654321987654");
+                BluetoothGattService gattService = gatt.getService(serviceUUID);
+
+                List<BluetoothGattCharacteristic> chars = gattService.getCharacteristics();
+
+                UUID charUUID_gsr =         UUID.fromString("43789734-9798-3479-8347-983479887878");
+                UUID charUUID_name =        UUID.fromString("43789734-9798-3479-8347-98347988787b");
+                UUID charUUID_sessionid =   UUID.fromString("43789734-9798-3479-8347-98347988787c");
+                UUID charUUID_tick =        UUID.fromString("43789734-9798-3479-8347-98347988787d");
+
+                for(BluetoothGattCharacteristic c : chars) {
+                    UUID u = c.getUuid();
+                    Log.d("BBB", "Found chars: "+u.toString());
+
+                }
+
+                gattCharacteristic_gsr = gattService.getCharacteristic(charUUID_gsr);
+                gattCharacteristic_name = gattService.getCharacteristic(charUUID_name);
+                gattCharacteristic_tick = gattService.getCharacteristic(charUUID_tick);
+
+                try {
+                    Thread.sleep(250);
+                } catch (InterruptedException e) {}
+
+                if(gattCharacteristic_gsr!=null) setNotify(gattCharacteristic_gsr, true);
+                if(gattCharacteristic_tick!=null) setNotify(gattCharacteristic_tick, true);
+                if(gattCharacteristic_name!=null) setNotify(gattCharacteristic_name, true);
+
+                //readCharacteristic(gattCharacteristic_name);
+                //readCharacteristic(gattCharacteristic_tick);
+
+
+
+                //enableNotification(gattCharacteristic_gsr);
+                //waitForGattAnswer();
+
+//                gattAnswer=0;
+//                enableNotification(gattCharacteristic_tick);
+//                waitForGattAnswer();
+//
+//                gattAnswer=0;
+//                mBluetoothGatt.readCharacteristic(gattCharacteristic_name);
+//                waitForGattAnswer();
+//
+//                gattAnswer=0;
+//                mBluetoothGatt.readCharacteristic(gattCharacteristic_sessionid);
+//                waitForGattAnswer();
+
+            } else {
+                Log.d("BBB", "onServicesDiscovered "+addr+" ERROR");
+
+            }
+        }
+
+
+
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+
+            //we are still connected to the service
+            if (status==BluetoothGatt.GATT_SUCCESS){
+                //send the characteristic to broadcastupdate
+                //broadcastupdate(ACTION_DATA_AVAILABLE, characteristic);
+
+                if(characteristic== gattCharacteristic_name) {
+
+                    String s = characteristic.getStringValue(0);
+                    if(s.length()>0) name = s;
+                    Log.d("BBB", "Char read name "+addr+" "+characteristic.getStringValue(0));
+
+
+                } else {
+                    Log.d("BBB", "onCharacteristicRead UNKNOWN " + addr);
+                }
+                completedCommand();
+
+            } else {
+                Log.d("BBB", "onCharacteristicRead FAILED "+addr);
+                completedCommand();
+            }
+
+        }
+
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            //send the characteristic to broadcastupdate
+            //broadcastupdate(ACTION_DATA_AVAILABLE, characteristic);
+
+            //Log.d("BBDATA", "onCharacteristicChanged "+obi.addr);
+
+            if(characteristic== gattCharacteristic_tick) {
+
+                long session = myTestService.ParseSession(characteristic.getValue(),0);
+                long tick = myTestService.ParseTick(characteristic.getValue(),4);
+
+                session = session;
+
+                long offset = System.currentTimeMillis() - tick;
+
+                //     void SaveSessionData(ObimonDevice obi, long t, long session, long device_t, long offset) {
+
+                myTestService.SaveSessionData(ObimonDevice.this, System.currentTimeMillis(), session, tick, offset);
+
+                Log.d("BBB", "" + addr + " "+name+" SESSION ts="+ tick+ " session="+session+" ====================== offset " +offset+" ntpcorr "+myTestService.ntpCorr);
+                //Log.d("BBB", "Char notify tick "+addr+" "+characteristic.getValue().toString());
+
+            } else if(characteristic == gattCharacteristic_gsr) {
+
+                byte[] buf = characteristic.getValue();
+                if (buf.length != 4) return;
+
+                //int acc = buf[0];
+
+                int acc = myTestService.ParseAcc(buf,0);
+                int gsr = myTestService.ParseGsr(buf, 1);
+
+                //Log.d("BBDATA", "GSRDATA " + acc + " " + gsr);
+
+                AddData(System.currentTimeMillis(), gsr, acc);
+
+                lastCharacteristics = System.currentTimeMillis();
+                lastGsrTime = System.currentTimeMillis();
+                received++;
+                lastSeen = System.currentTimeMillis();
+
+            } else if(characteristic== gattCharacteristic_name) {
+
+                String s = characteristic.getStringValue(0);
+                if(s.length()>0) name = s;
+                Log.d("BBB", "Char notify name "+addr+" "+characteristic.getStringValue(0));
+
+
+            }
+
+        }
+
+        @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            Log.d("BBB", "onDescriptorWrite");
+
+            completedCommand();        }
+    };
+
     class HousekeepingThread extends Thread {
         boolean stop = false;
 

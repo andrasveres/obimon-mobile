@@ -5,8 +5,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.os.SystemClock;
-import android.support.v4.app.Fragment;
+
+import androidx.fragment.app.Fragment;
 import android.text.Html;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -20,11 +20,8 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Created by andrasveres on 03/04/15.
@@ -74,14 +71,7 @@ public class SelectFragment extends Fragment {
                         HashSet<ObimonDevice> deviceSet = new HashSet<ObimonDevice>();
                         // add new devices to list
                         for(ObimonDevice obimon : MyActivity.myTestService.foundDevices.values()) {
-
-                            if(obimon.group.compareTo(MyActivity.group)!=0 && MyActivity.group.compareTo("xxxx")!=0) {
-                                if(System.currentTimeMillis() - obimon.lastTsBroadcast > 60000) {
-                                    obimon.selected = false;
-                                    continue;
-                                }
-                            }
-
+                            
                             deviceSet.add(obimon);
 
                             boolean found = false;

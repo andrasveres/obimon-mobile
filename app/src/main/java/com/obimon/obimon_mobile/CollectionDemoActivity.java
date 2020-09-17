@@ -22,13 +22,14 @@ package com.obimon.obimon_mobile;
 import android.app.ActionBar;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentActivity;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentStatePagerAdapter;
-import android.support.v4.app.NavUtils;
-import android.support.v4.app.TaskStackBuilder;
-import android.support.v4.view.ViewPager;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentStatePagerAdapter;
+import androidx.core.app.NavUtils;
+import androidx.core.app.TaskStackBuilder;
+import androidx.viewpager.widget.PagerAdapter;
+import androidx.viewpager.widget.ViewPager;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
@@ -38,8 +39,8 @@ import android.widget.TextView;
 public class CollectionDemoActivity extends FragmentActivity {
 
     /**
-     * The {@link android.support.v4.view.PagerAdapter} that will provide fragments representing
-     * each object in a collection. We use a {@link android.support.v4.app.FragmentStatePagerAdapter}
+     * The {@link PagerAdapter} that will provide fragments representing
+     * each object in a collection. We use a {@link FragmentStatePagerAdapter}
      * derivative, which will destroy and re-create fragments as needed, saving and restoring their
      * state in the process. This is important to conserve memory and is a best practice when
      * allowing navigation between objects in a potentially large collection.
@@ -47,7 +48,7 @@ public class CollectionDemoActivity extends FragmentActivity {
     DemoCollectionPagerAdapter mDemoCollectionPagerAdapter;
 
     /**
-     * The {@link android.support.v4.view.ViewPager} that will display the object collection.
+     * The {@link ViewPager} that will display the object collection.
      */
     ViewPager mViewPager;
 
@@ -101,7 +102,7 @@ public class CollectionDemoActivity extends FragmentActivity {
     }
 
     /**
-     * A {@link android.support.v4.app.FragmentStatePagerAdapter} that returns a fragment
+     * A {@link FragmentStatePagerAdapter} that returns a fragment
      * representing an object in the collection.
      */
     public static class DemoCollectionPagerAdapter extends FragmentStatePagerAdapter {

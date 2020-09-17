@@ -9,10 +9,9 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
-import android.support.v4.content.LocalBroadcastManager;
-import android.text.Editable;
-import android.text.TextWatcher;
+import androidx.fragment.app.Fragment;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -25,10 +24,6 @@ import android.widget.TextView;
 
 import java.util.Date;
 
-import static com.obimon.obimon_mobile.ManageObimon.ManageState.ERASE;
-import static com.obimon.obimon_mobile.ManageObimon.ManageState.IDLE;
-import static com.obimon.obimon_mobile.ManageObimon.ManageState.READMEM;
-import static com.obimon.obimon_mobile.ManageObimon.ManageState.UNCONNECTED;
 import static com.obimon.obimon_mobile.MyTestService.BROADCAST_TIMECHANGED;
 
 /**
@@ -117,31 +112,9 @@ public class SettingsFragment extends Fragment {
             }
         });
 
-        final EditText editObimonGroup = (EditText) rootView.findViewById(R.id.editObimonGroup);
-        editObimonGroup.addTextChangedListener(
-                new TextWatcher() {
-                    @Override
-                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
-                    }
-
-                    @Override
-                    public void onTextChanged(CharSequence s, int start, int before, int count) {
-                        Log.d(TAG, "group changed "+s);
-                        MyActivity.group = s.toString();
-                        saveSettings();
-                    }
-
-                    @Override
-                    public void afterTextChanged(Editable s) {
-
-                    }
-                }
-        );
 
         valueSclWindow.setText("" + MyActivity.sclWindow);
         valueGraphHistory.setText("" + MyActivity.graphHistory);
-        editObimonGroup.setText(MyActivity.group);
 
         return rootView;
     }

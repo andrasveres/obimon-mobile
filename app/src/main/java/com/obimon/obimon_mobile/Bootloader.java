@@ -1,7 +1,10 @@
 package com.obimon.obimon_mobile;
 
+import android.content.Intent;
 import android.util.Log;
 import android.widget.Toast;
+
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,6 +15,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Vector;
 
+import static com.obimon.obimon_mobile.ManageObimon.BROADCAST_REFRESH;
 import static com.obimon.obimon_mobile.ManageObimon.ManageState.IDLE;
 
 /**
@@ -56,7 +60,11 @@ public class Bootloader implements Runnable {
 
         Log.d("BL", "Erase Device");
         buffer = PacketErase();
-        myTestService.blWrite(buffer);
+        ret = myTestService.blWrite(buffer);
+        if(ret<0) {
+            Log.d("BL", "Error sending erase to device");
+            return;
+        }
         Log.d("BL", "Erase Device OK");
 
         WriteDevice();
@@ -501,6 +509,7 @@ public class Bootloader implements Runnable {
             }
             Log.d("BL", "Percent "+percentCompletion);
             myTestService.programmingPercentage = (int)percentCompletion;
+            LocalBroadcastManager.getInstance(myTestService).sendBroadcast(new Intent(BROADCAST_REFRESH));
 
 
             //Prepare the packet to send to the device.
@@ -829,6 +838,8 @@ public class Bootloader implements Runnable {
             Log.d("BL", "Wrong device family not PIC24 "+picDevice.deviceFamily);
             return -1;
         }
+
+        Log.d("BL", "ProcessBootInfo OK");
 
 
         //Now start parsing the bootInfo packet to learn more about the device.  The bootInfo packet contains
