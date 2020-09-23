@@ -90,6 +90,12 @@ public class SettingsFragment extends Fragment {
 
                 MyActivity.adjustScl = isChecked;
 
+                for(ObimonDevice obi : MyActivity.myTestService.foundDevices.values()) {
+                    obi.series.clear();
+                    obi.seriesAcc.clear();
+                }
+
+
                 return;
             }
         });
@@ -154,12 +160,24 @@ public class SettingsFragment extends Fragment {
                             int newValue = Integer.parseInt(String.valueOf(v.getText()));
                             if(newValue > 1) MyActivity.graphHistory = newValue;
                             saveSettings();
+
+                            for(ObimonDevice obi : MyActivity.myTestService.foundDevices.values()) {
+                                obi.series.clear();
+                                obi.seriesAcc.clear();
+
+                            }
+
                         }
 
                         if (v == valueSclWindow) {
                             int newValue = Integer.parseInt(String.valueOf(v.getText()));
                             if(newValue>1) MyActivity.sclWindow = Integer.parseInt(String.valueOf(v.getText()));
                             saveSettings();
+
+                            for(ObimonDevice obi : MyActivity.myTestService.foundDevices.values()) {
+                                obi.series.clear();
+                                obi.seriesAcc.clear();
+                            }
 
                         }
 

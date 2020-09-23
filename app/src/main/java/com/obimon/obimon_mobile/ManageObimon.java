@@ -505,7 +505,7 @@ public class ManageObimon {
 
             if (parseDump(block, out) != 0) break;
 
-            if(System.currentTimeMillis() - lastStat > 1000) {
+            if(System.currentTimeMillis() - lastStat > 200) {
 
                 progress = (int) (100.0 * i / len);
                 LocalBroadcastManager.getInstance(myTestService).sendBroadcast(new Intent(BROADCAST_REFRESH));
@@ -648,7 +648,7 @@ public class ManageObimon {
             int acc = (d >> 24) & 0xff;
             int g = d & 0x00ffffff;
 
-            if(g == 0xffffff || g==0) continue; //ffffff
+            //if(g == 0xffffffff) continue; //ffffff
 
             long ts_corrected = ts + offset;
 

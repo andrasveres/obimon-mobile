@@ -15,6 +15,7 @@ import android.widget.BaseExpandableListAdapter;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ExpandableListView;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -33,11 +34,11 @@ public class DevicesFragment extends Fragment {
 
     MyActivity myActivity;
 
-    public ArrayList<ObimonListItem> listedDevices = new ArrayList<>();
+    private ArrayList<ObimonListItem> listedDevices = new ArrayList<>();
 
     MyExpandableListAdapter listAdapter;
     ExpandableListView expListView;
-    HashMap<String, List<String>> listDataChild;
+    //HashMap<String, List<String>> listDataChild;
 
     UpdateThread updateThread=null;
 
@@ -99,11 +100,8 @@ public class DevicesFragment extends Fragment {
                 // update items
                 for(ObimonListItem item : listedDevices) {
 
-                    item.received += item.obimon.received;
-                    item.lost += item.obimon.lost;
-
-                    item.obimon.received=0;
-                    item.obimon.lost=0;
+                    item.received = item.obimon.received;
+                    item.lost = item.obimon.lost;
 
                     item.bat = item.obimon.bat;
                     item.mem = item.obimon.mem;
@@ -244,6 +242,19 @@ public class DevicesFragment extends Fragment {
         ObimonDevice.ConnectionState connectionState=ObimonDevice.ConnectionState.IDLE;
     }
 
+    public class MySwitchCheckedChangeListener implements CompoundButton.OnCheckedChangeListener {
+        ObimonDevice obi;
+
+        public MySwitchCheckedChangeListener(ObimonDevice obi) {
+            this.obi = obi;
+        }
+
+        @Override
+        public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+            Log.i(TAG, "Obi stream switch "+obi.name);
+        }
+    }
+
     public class MyCheckedChangeListener implements CompoundButton.OnCheckedChangeListener {
         ObimonDevice obi;
 
@@ -303,6 +314,9 @@ public class DevicesFragment extends Fragment {
             //stat_value.setText(""+item.received+"/"+item.lost);
             stat_value.setText(""+item.received);
 
+            //Switch obi_connswitch = (Switch) convertView.findViewById(R.id.switch_stream);
+            //obi_connswitch.setOnCheckedChangeListener(new MySwitchCheckedChangeListener(item.addr.toString()));
+
             TextView battery_value = (TextView) convertView.findViewById(R.id.battery_value);
             if(item.bat==-1) battery_value.setText("wait");
             else battery_value.setText(""+item.bat+"V");
@@ -327,7 +341,7 @@ public class DevicesFragment extends Fragment {
 */
 
             if(item.mem == -1) mem_value.setText("wait");
-            else mem_value.setText(""+(100-item.mem)+"%");
+            else mem_value.setText(""+(item.mem)+"%");
             if(item.mem>90) mem_value.setBackgroundColor(Color.RED);
             else mem_value.setBackgroundColor(Color.TRANSPARENT);
 
@@ -435,6 +449,15 @@ public class DevicesFragment extends Fragment {
             obi_select.setOnCheckedChangeListener(null);
             obi_select.setChecked(item.obimon.selected);
             obi_select.setOnCheckedChangeListener(new MyCheckedChangeListener(item.obimon));
+
+            if(item.build.length()>4) {
+                if(Integer.parseInt(item.build.substring(item.build.length()-4))<2020) {
+                    status.setText("PLS UPGRADE DEVICE");
+                    status.setBackgroundColor(Color.RED);
+                    sync_status.setText("");
+                }
+            }
+
 
             if(item.build.length()>4) {
                 if(Integer.parseInt(item.build.substring(item.build.length()-4))<2020) {

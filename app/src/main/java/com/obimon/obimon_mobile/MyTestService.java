@@ -475,7 +475,11 @@ public class MyTestService  extends Service {
         public void onScanResult(int callbackType, ScanResult result) {
             //Log.d(TAG, "onScanResult " + result);
 
-            parseScanData(result);
+            try {
+                parseScanData(result);
+            } catch(Exception e) {
+                Log.e("SCAN",e.getMessage());
+            }
 
             //super.onScanResult(callbackType, result);
 
@@ -564,8 +568,9 @@ public class MyTestService  extends Service {
             obi = foundDevices.get(addr);
         }
 
-        if(obi.connectionState == ObimonDevice.ConnectionState.IDLE) {
-            if(obi.selected){
+        if(obi.selected && scanResult.isConnectable() == true){
+            if(obi.connectionState == ObimonDevice.ConnectionState.IDLE || obi.connectionState == ObimonDevice.ConnectionState.FAILED) {
+
             // if(addr.endsWith("D0")) {
             //    if(addr.endsWith("FE:DD")) {
 
@@ -590,7 +595,10 @@ public class MyTestService  extends Service {
                 if(device == null) {
                     Log.d("BBB", "Device not available "+addr);
                 } else {
-                    obi.mBluetoothGatt = device.connectGatt(this, true, obi.mGattCallback);
+                    if(obi.mBluetoothGatt == null)
+                        obi.mBluetoothGatt = device.connectGatt(this, false, obi.mGattCallback);
+                    else
+                        obi.mBluetoothGatt.connect();
                 }
             }
         }
@@ -598,7 +606,10 @@ public class MyTestService  extends Service {
 
         if(obi.selected == false && obi.connectionState == ObimonDevice.ConnectionState.CONNECTED) {
             Log.d("BBB", "Disconnect "+addr);
-            if(obi.mBluetoothGatt!=null) obi.mBluetoothGatt.disconnect();
+            if(obi.mBluetoothGatt!=null) {
+                obi.mBluetoothGatt.disconnect();
+
+            }
         }
 
 
@@ -662,27 +673,17 @@ public class MyTestService  extends Service {
                 }
 
 
-                long session=ParseSession(badata.manufacturerSpecificBytes, 3);
+                long ses=ParseSession(badata.manufacturerSpecificBytes, 3);
                 /*for (int i=3; i < 4+3; i++) {
                     int b = badata.manufacturerSpecificBytes[i] & 0x000000ff;
                     session *= 256;
                     session += b;
                 }*/
-                obi.session = session;
 
-                long ts = ParseTick(badata.manufacturerSpecificBytes,7);
+                long tick = ParseTick(badata.manufacturerSpecificBytes,7);
 
-                long offset = rxTime - ts;
-
-                Log.d(TAG, "" + obi.addr + " "+obi.name+" SESSION ts="+ ts+ " session="+session+" ====================== offset " +offset+" ntpcorr "+ntpCorr);
-
-                //     void SaveSessionData(ObimonDevice obi, long t, long session, long device_t, long offset) {
-
-                SaveSessionData(obi, rxTime, session, ts, offset);
-
-                //SyncData d = new SyncData(rxTime, addr, session, ts, offset, ntpCorr);
-                //obimonDatabase.syncDataDao().insertSyncData(d);
-                // obi.lastSessionSync = rxTime;
+                Log.d("BBB", "SESSION from ADV "+obi.addr+" tick "+tick);
+                obi.ProcessSyncData(ses, tick, rxTime);
 
                 break;
             }
@@ -839,8 +840,10 @@ public class MyTestService  extends Service {
                 if(System.currentTimeMillis() - obi.lastCharacteristics > 1000) {
                     Log.d(TAG, "GSRDATA==== "+addr+" "+n+" "+gsr+" acc "+acc +" d_rxTime:"+(rxTime-obi.lastGsrTime));
 
+                    obi.AddData(System.currentTimeMillis(), gsr, acc);
+
+                    // lastgsr has to be updated after calling adddata
                     obi.lastGsrTime = System.currentTimeMillis();
-                    obi.AddData(rxTime, gsr, acc);
                 }
 
                 break;

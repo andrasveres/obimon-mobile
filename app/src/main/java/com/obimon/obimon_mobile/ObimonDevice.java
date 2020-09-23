@@ -117,6 +117,7 @@ public class ObimonDevice {
     int mem=-1;
     int signal=0;
     long lastSessionSync=0;
+    long prevOffset=0;
 
     public enum ConnectionState {
         IDLE, CONNECTING, CONNECTED, FAILED
@@ -178,8 +179,16 @@ public class ObimonDevice {
         //    Log.i(TAG, "Jump "+gsr+" "+lastGsr);
         //}
 
-        double alpha = 1.0/(MyActivity.sclWindow*8);
-        scl = alpha * gsr + (1-alpha) * scl;
+        if(series.getItemCount()==0) scl = gsr;
+        else {
+            double dt = (ts - lastGsrTime)/1000.0;
+
+            double alpha = 1.0 / MyActivity.sclWindow * dt;
+
+            // Log.d("DDD", "dt "+dt+" alpha "+alpha);
+
+            scl = alpha * gsr + (1 - alpha) * scl;
+        }
 
         double v=gsr;
 
@@ -421,21 +430,21 @@ public class ObimonDevice {
             return;
         }
 
-        Log.d("BBB", "enableNotification "+addr+" "+c.getUuid());
+        //Log.d("BBB", "enableNotification "+addr+" "+c.getUuid());
 
         boolean res = mBluetoothGatt.setCharacteristicNotification(c, true);
-        Log.d("BBB", "setCharacteristicNotification " + res);
+        //Log.d("BBB", "setCharacteristicNotification " + res);
 
         List<BluetoothGattDescriptor> descriptors = c.getDescriptors();
         for (BluetoothGattDescriptor d : descriptors) {
-            Log.d("BBB", "desc " + d.getUuid());
+            //Log.d("BBB", "desc " + d.getUuid());
             d.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
             res = mBluetoothGatt.writeDescriptor(d);
 
-            Log.d("BBB", "setCharacteristicNotification write desc " + res);
+            //Log.d("BBB", "setCharacteristicNotification write desc " + res);
 
             if(res) {
-                Log.d("BBB", "setCharacteristicNotification write desc SUCCESS " +addr);
+                //Log.d("BBB", "setCharacteristicNotification write desc SUCCESS " +addr);
                 return;
             }
         }
@@ -446,7 +455,7 @@ public class ObimonDevice {
     }
 
     public boolean setNotify(final BluetoothGattCharacteristic characteristic, final boolean enable) {
-        Log.d("BBB", "setNotify");
+        //Log.d("BBB", "setNotify");
 
         // Check if characteristic is valid
 
@@ -566,7 +575,22 @@ public class ObimonDevice {
         nextCommand();
     }
 
+    void ProcessSyncData(long ses, long tick, long ts) {
+        session = ses;
 
+        long offset = ts - tick;
+
+        Log.d("BBB", "SESSION " + addr + " "+name+" tick="+ tick+ " session="+session+" ====================== offset " +offset+" ntpcorr "+myTestService.ntpCorr);
+
+        if (Math.abs(offset - prevOffset) < 100) {
+            Log.d("BBB", "Saving offset "+addr);
+            myTestService.SaveSessionData(ObimonDevice.this, System.currentTimeMillis(), session, tick, offset);
+        } else {
+            Log.d("BBB", "Too large offset diff "+addr);
+        }
+
+        prevOffset = offset;
+    }
 
     public final static String ACTION_GATT_CONNECTED = "com.obimon.obimon_mobile.ACTION_GATT_CONNECTED";
     //get callbacks when something changes
@@ -577,7 +601,7 @@ public class ObimonDevice {
             if(status != BluetoothGatt.GATT_SUCCESS) {
                 Log.d("BBB", "gatt conn FAILED "+addr);
 
-                // obi.connectionState = ObimonDevice.ConnectionState.IDLE;
+                connectionState = ObimonDevice.ConnectionState.IDLE;
 
                 return;
 
@@ -630,7 +654,7 @@ public class ObimonDevice {
 
                 for(BluetoothGattCharacteristic c : chars) {
                     UUID u = c.getUuid();
-                    Log.d("BBB", "Found chars: "+u.toString());
+                    //Log.d("BBB", "Found chars: "+u.toString());
 
                 }
 
@@ -710,18 +734,16 @@ public class ObimonDevice {
 
             if(characteristic== gattCharacteristic_tick) {
 
-                long session = myTestService.ParseSession(characteristic.getValue(),0);
-                long tick = myTestService.ParseTick(characteristic.getValue(),4);
-
-                session = session;
+                long ses = myTestService.ParseSession(characteristic.getValue(), 0);
+                long tick = myTestService.ParseTick(characteristic.getValue(), 4);
 
                 long offset = System.currentTimeMillis() - tick;
 
-                //     void SaveSessionData(ObimonDevice obi, long t, long session, long device_t, long offset) {
+                Log.d("BBB", "SESSION from NOIFY "+addr);
 
-                myTestService.SaveSessionData(ObimonDevice.this, System.currentTimeMillis(), session, tick, offset);
+                ProcessSyncData(ses, tick, System.currentTimeMillis());
 
-                Log.d("BBB", "" + addr + " "+name+" SESSION ts="+ tick+ " session="+session+" ====================== offset " +offset+" ntpcorr "+myTestService.ntpCorr);
+
                 //Log.d("BBB", "Char notify tick "+addr+" "+characteristic.getValue().toString());
 
             } else if(characteristic == gattCharacteristic_gsr) {
@@ -756,7 +778,7 @@ public class ObimonDevice {
 
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            Log.d("BBB", "onDescriptorWrite");
+            //Log.d("BBB", "onDescriptorWrite");
 
             completedCommand();        }
     };

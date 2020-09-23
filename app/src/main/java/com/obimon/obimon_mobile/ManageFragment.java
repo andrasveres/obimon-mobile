@@ -101,8 +101,8 @@ public class ManageFragment extends Fragment {
                 } else {
                     labelName.setText(manageObimon.name);
 
-                    double freeMem = 100 - (int) ((1000 * manageObimon.memptr - 65536) / (8 * 1024 * 1024 - 65536)) / 10;
-                    labelMemory.setText("" + freeMem + "%");
+                    double usedMem = (int) ((1000 * manageObimon.memptr - 65536) / (8 * 1024 * 1024 - 65536)) / 10;
+                    labelMemory.setText("" + usedMem + "%");
                     //labelSync.setText("" + manageObimon.sync + "ms");
 
                     labelBtVersion.setText(""+manageObimon.btversion);
@@ -185,17 +185,18 @@ public class ManageFragment extends Fragment {
                         } else {
                             labelName.setText(manageObimon.name);
 
-                            double freeMem = 100 - (int) ((1000 * manageObimon.memptr - 65536) / (8 * 1024 * 1024 - 65536)) / 10;
-                            labelMemory.setText("" + freeMem + "%");
+                            double usedMem = (int) ((1000 * manageObimon.memptr - 65536) / (8 * 1024 * 1024 - 65536)) / 10;
+                            labelMemory.setText("" + usedMem + "%");
                             //labelSync.setText("" + manageObimon.sync + "ms");
 
-                            labelBtVersion.setText(""+manageObimon.btversion);
+                            if(manageObimon.btversion>0) labelBtVersion.setText(""+manageObimon.btversion);
+                            else labelBtVersion.setText("wait...");
 
                             //labelAPIversion.setText("" + MyActivity.myTestService.manageObimon.apiversion);
 
                             if(manageObimon.build!=null)
                                 labelObimonVersion.setText(manageObimon.build);
-                            else labelObimonVersion.setText("Very old...");
+                            else labelObimonVersion.setText("wait...");
 
                         }
 
