@@ -7,8 +7,8 @@ android {
         applicationId "com.obimon.obimon_mobile"
         minSdkVersion 29
         targetSdkVersion 29
-        versionCode 23
-        versionName "2.17"
+        versionCode 24
+        versionName "3.0"
     }
     buildTypes {
         release {
