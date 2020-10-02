@@ -50,6 +50,7 @@ import static android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT32;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_INDICATE;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_NOTIFY;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_READ;
+import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE;
 
 //import de.tavendo.autobahn.WebSocketConnection;
 //import de.tavendo.autobahn.WebSocketException;
@@ -62,6 +63,8 @@ public class ObimonDevice {
     public BluetoothGattCharacteristic gattCharacteristic_gsr;
     public BluetoothGattCharacteristic gattCharacteristic_name;
     public BluetoothGattCharacteristic gattCharacteristic_tick;
+    public BluetoothGattCharacteristic gattCharacteristic_keepalive;
+
 
     private Queue<Runnable> commandQueue = new LinkedList<>();
     private boolean commandQueueBusy;
@@ -86,11 +89,14 @@ public class ObimonDevice {
 //    private final WebSocketConnection mWSConnection = new WebSocketConnection();
     WebSocketClient mWebSocketClient;
 
-    HousekeepingThread housekeepingThread;
-
+    //HousekeepingThread housekeepingThread;
+    BleReadThread bleReadThread;
 
     ConnectionState connectionState=ConnectionState.IDLE;
-    ConnectionState wsConnectionState=ConnectionState.IDLE;
+    //ConnectionState wsConnectionState=ConnectionState.IDLE;
+
+    int servicesDiscovered = 0;
+    boolean connectable = false;
 
     TimeSeries series;
     TimeSeries seriesAcc;
@@ -133,6 +139,10 @@ public class ObimonDevice {
         //connectionState = ConnectionState.IDLE;
         series.clear();
         seriesAcc.clear();
+
+        if(bleReadThread != null) {
+            bleReadThread.stop = true;
+        }
     }
 
 
@@ -151,8 +161,11 @@ public class ObimonDevice {
         series = new TimeSeries(this.name); //device.getName());
         seriesAcc = new TimeSeries(this.name+"_acc"); //device.getName());
 
-        housekeepingThread = new HousekeepingThread();
+        //housekeepingThread = new HousekeepingThread();
         //housekeepingThread.start();                                      ANDRAS
+
+        bleReadThread = new BleReadThread();
+        bleReadThread.start();
 
     }
 
@@ -430,10 +443,19 @@ public class ObimonDevice {
             return;
         }
 
-        //Log.d("BBB", "enableNotification "+addr+" "+c.getUuid());
+        Log.d("BBB", "enableNotification "+addr+" "+c.getUuid());
 
-        boolean res = mBluetoothGatt.setCharacteristicNotification(c, true);
+        boolean res;
+
+        mBluetoothGatt.setCharacteristicNotification(c, true);
+
         //Log.d("BBB", "setCharacteristicNotification " + res);
+
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         List<BluetoothGattDescriptor> descriptors = c.getDescriptors();
         for (BluetoothGattDescriptor d : descriptors) {
@@ -444,8 +466,10 @@ public class ObimonDevice {
             //Log.d("BBB", "setCharacteristicNotification write desc " + res);
 
             if(res) {
-                //Log.d("BBB", "setCharacteristicNotification write desc SUCCESS " +addr);
+                Log.d("BBB", "setCharacteristicNotification write desc SUCCESS " +addr);
                 return;
+            } else {
+                Log.d("BBB", "setCharacteristicNotification write desc FAILED " +addr);
             }
         }
 
@@ -478,6 +502,11 @@ public class ObimonDevice {
 
     public boolean readCharacteristic(final BluetoothGattCharacteristic characteristic) {
         Log.d("BBB", "readCharacteristic "+addr);
+
+        if(servicesDiscovered == 0) {
+            Log.e("BBB", "ERROR: services not discovered yet, ignoring");
+            return false;
+        }
 
         if(mBluetoothGatt == null) {
             Log.e("BBB", "ERROR: Gatt is 'null', ignoring read request");
@@ -518,6 +547,55 @@ public class ObimonDevice {
         return result;
     }
 
+    public boolean writeCharacteristic(final BluetoothGattCharacteristic characteristic) {
+        Log.d("BBB", "writeCharacteristic "+addr);
+
+        if(servicesDiscovered == 0) {
+            Log.e("BBB", "ERROR: services not discovered yet, ignoring");
+
+            return false;
+        }
+
+        if(mBluetoothGatt == null) {
+            Log.e("BBB", "ERROR: Gatt is 'null', ignoring read request");
+            return false;
+        }
+
+        // Check if characteristic is valid
+        if(characteristic == null) {
+            Log.e("BBB", "ERROR: Characteristic is 'null', ignoring write request");
+            return false;
+        }
+
+        // Check if this characteristic actually has READ property
+        if((characteristic.getProperties() & PROPERTY_WRITE) == 0 ) {
+            Log.e("BBB", "ERROR: Characteristic cannot be written");
+            return false;
+        }
+
+        characteristic.setValue("TEST");
+
+        // Enqueue the write command now that all checks have been passed
+        boolean result = commandQueue.add(new Runnable() {
+            @Override
+            public void run() {
+                if(!mBluetoothGatt.writeCharacteristic(characteristic)) {
+                    Log.e("BBB", String.format("ERROR: writeCharacteristic failed for characteristic: %s", characteristic.getUuid()));
+                    completedCommand();
+                } else {
+                    Log.d("BBB", String.format("writing characteristic <%s>", characteristic.getUuid()));
+                    nrTries++;
+                }
+            }
+        });
+
+        if(result) {
+            nextCommand();
+        } else {
+            Log.e("BBB", "ERROR: Could not enqueue write characteristic command");
+        }
+        return result;
+    }
 
     private void nextCommand() {
         // If there is still a command being executed then bail out
@@ -602,6 +680,10 @@ public class ObimonDevice {
                 Log.d("BBB", "gatt conn FAILED "+addr);
 
                 connectionState = ObimonDevice.ConnectionState.IDLE;
+                servicesDiscovered = 0;
+
+                commandQueue.clear();
+                commandQueueBusy = false;
 
                 return;
 
@@ -626,6 +708,10 @@ public class ObimonDevice {
                 Log.d("BBB", "STATE_DISCONNECTED "+addr);
 
                 connectionState = ObimonDevice.ConnectionState.IDLE;
+                servicesDiscovered = 0;
+
+                commandQueue.clear();
+                commandQueueBusy = false;
 
             } else {
                 Log.d("BBB", "XXXXXXXXX "+addr);
@@ -649,7 +735,7 @@ public class ObimonDevice {
 
                 UUID charUUID_gsr =         UUID.fromString("43789734-9798-3479-8347-983479887878");
                 UUID charUUID_name =        UUID.fromString("43789734-9798-3479-8347-98347988787b");
-                UUID charUUID_sessionid =   UUID.fromString("43789734-9798-3479-8347-98347988787c");
+                UUID charUUID_keepalive =   UUID.fromString("43789734-9798-3479-8347-98347988787c");
                 UUID charUUID_tick =        UUID.fromString("43789734-9798-3479-8347-98347988787d");
 
                 for(BluetoothGattCharacteristic c : chars) {
@@ -661,17 +747,21 @@ public class ObimonDevice {
                 gattCharacteristic_gsr = gattService.getCharacteristic(charUUID_gsr);
                 gattCharacteristic_name = gattService.getCharacteristic(charUUID_name);
                 gattCharacteristic_tick = gattService.getCharacteristic(charUUID_tick);
+                gattCharacteristic_keepalive = gattService.getCharacteristic(charUUID_keepalive);
 
                 try {
                     Thread.sleep(250);
                 } catch (InterruptedException e) {}
 
-                if(gattCharacteristic_gsr!=null) setNotify(gattCharacteristic_gsr, true);
-                if(gattCharacteristic_tick!=null) setNotify(gattCharacteristic_tick, true);
-                if(gattCharacteristic_name!=null) setNotify(gattCharacteristic_name, true);
+                //if(gattCharacteristic_gsr!=null) setNotify(gattCharacteristic_gsr, true);
+                //if(gattCharacteristic_tick!=null) setNotify(gattCharacteristic_tick, true);
+                //if(gattCharacteristic_name!=null) setNotify(gattCharacteristic_name, true);
 
                 //readCharacteristic(gattCharacteristic_name);
                 //readCharacteristic(gattCharacteristic_tick);
+                //readCharacteristic(gattCharacteristic_gsr);
+
+                servicesDiscovered = 1;
 
 
 
@@ -697,6 +787,49 @@ public class ObimonDevice {
         }
 
 
+        void GotCharGsr(BluetoothGattCharacteristic characteristic) {
+            byte[] buf = characteristic.getValue();
+            if (buf.length != 4) return;
+
+            //int acc = buf[0];
+
+            int acc = myTestService.ParseAcc(buf,0);
+            int gsr = myTestService.ParseGsr(buf, 1);
+
+            Log.d("BBB", "GSRDATA " + acc + " " + gsr);
+
+            AddData(System.currentTimeMillis(), gsr, acc);
+
+            lastCharacteristics = System.currentTimeMillis();
+            lastGsrTime = System.currentTimeMillis();
+            received++;
+            lastSeen = System.currentTimeMillis();
+
+        }
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+
+            //we are still connected to the service
+            if (status==BluetoothGatt.GATT_SUCCESS){
+                //send the characteristic to broadcastupdate
+                //broadcastupdate(ACTION_DATA_AVAILABLE, characteristic);
+
+                if(characteristic== gattCharacteristic_keepalive) {
+                    Log.d("BBB", "onCharacteristicWrite KEEPALLIVE " + addr);
+
+
+                } else{
+                    Log.d("BBB", "onCharacteristicWrite UNKNOWN " + addr);
+                }
+                completedCommand();
+
+            } else {
+                Log.d("BBB", "onCharacteristicWrite FAILED "+addr);
+                completedCommand();
+            }
+
+        }
 
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
@@ -713,7 +846,12 @@ public class ObimonDevice {
                     Log.d("BBB", "Char read name "+addr+" "+characteristic.getStringValue(0));
 
 
-                } else {
+                } else if(characteristic== gattCharacteristic_gsr) {
+
+                    GotCharGsr(characteristic);
+
+
+                } else{
                     Log.d("BBB", "onCharacteristicRead UNKNOWN " + addr);
                 }
                 completedCommand();
@@ -747,23 +885,8 @@ public class ObimonDevice {
                 //Log.d("BBB", "Char notify tick "+addr+" "+characteristic.getValue().toString());
 
             } else if(characteristic == gattCharacteristic_gsr) {
+                GotCharGsr(characteristic);
 
-                byte[] buf = characteristic.getValue();
-                if (buf.length != 4) return;
-
-                //int acc = buf[0];
-
-                int acc = myTestService.ParseAcc(buf,0);
-                int gsr = myTestService.ParseGsr(buf, 1);
-
-                //Log.d("BBDATA", "GSRDATA " + acc + " " + gsr);
-
-                AddData(System.currentTimeMillis(), gsr, acc);
-
-                lastCharacteristics = System.currentTimeMillis();
-                lastGsrTime = System.currentTimeMillis();
-                received++;
-                lastSeen = System.currentTimeMillis();
 
             } else if(characteristic== gattCharacteristic_name) {
 
@@ -778,74 +901,112 @@ public class ObimonDevice {
 
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            //Log.d("BBB", "onDescriptorWrite");
+            Log.d("BBB", "onDescriptorWrite");
 
-            completedCommand();        }
+            completedCommand();
+        }
     };
 
-    class HousekeepingThread extends Thread {
+    class BleReadThread extends Thread {
         boolean stop = false;
 
         @Override
         public void run() {
 
-            Log.i("HousekeepingThread", "Started");
- 
+            Log.i("BleReadThread", "Started");
+
+            long lastKeepAlive = System.currentTimeMillis();
+            long lastNameRequest = System.currentTimeMillis();
+
             while(!stop) {
 
-                if(wsConnectionState == ConnectionState.IDLE || wsConnectionState == ConnectionState.FAILED) {
-                    Log.i("HousekeepingThread", "WS RECONNECT");
-                    connectWebSocket();
-                }
-
                 try {
-                    sleep(2000);
+                    sleep(250);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
 
+                if(connectionState != ConnectionState.CONNECTED || servicesDiscovered == 0) continue;
+
+                if(commandQueueBusy == false) readCharacteristic(gattCharacteristic_gsr);
+
+                if(System.currentTimeMillis() - lastKeepAlive > 1000) {
+                    writeCharacteristic(gattCharacteristic_keepalive);
+                    lastKeepAlive = System.currentTimeMillis();
+                }
+
+                if(System.currentTimeMillis() - lastNameRequest > 4000) {
+                    readCharacteristic(gattCharacteristic_name);
+                    lastNameRequest = System.currentTimeMillis();
+                }
+
             }
         }
     }
 
+//    class HousekeepingThread extends Thread {
+//        boolean stop = false;
+//
+//        @Override
+//        public void run() {
+//
+//            Log.i("HousekeepingThread", "Started");
+//
+//            while(!stop) {
+//
+//                if(wsConnectionState == ConnectionState.IDLE || wsConnectionState == ConnectionState.FAILED) {
+//                    Log.i("HousekeepingThread", "WS RECONNECT");
+//                    connectWebSocket();
+//                }
+//
+//                try {
+//                    sleep(2000);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+//
+//            }
+//        }
+//    }
 
-    private void connectWebSocket() {
-        Log.i("connectWebSocket", "connecting");
 
-        URI uri;
-        try {
-            uri = new URI("ws://affektiv.hu:8080/ObimonServer/stream");
-        } catch (URISyntaxException e) {
-            wsConnectionState = ConnectionState.FAILED;
-            e.printStackTrace();
-            return;
-        }
+//    private void connectWebSocket() {
+//        Log.i("connectWebSocket", "connecting");
+//
+//        URI uri;
+//        try {
+//            uri = new URI("ws://affektiv.hu:8080/ObimonServer/stream");
+//        } catch (URISyntaxException e) {
+//            wsConnectionState = ConnectionState.FAILED;
+//            e.printStackTrace();
+//            return;
+//        }
 
-        mWebSocketClient = new WebSocketClient(uri, new Draft_17()) {
-            @Override
-            public void onOpen(ServerHandshake serverHandshake) {
-                Log.i("Websocket", "Opened");
-                wsConnectionState = ConnectionState.CONNECTED;
-                mWebSocketClient.send("Hello from " + Build.MANUFACTURER + " " + Build.MODEL);
-            }
-
-            @Override
-            public void onMessage(String s) {
-                final String message = s;
-                Log.i("Websocket", "onMessage "+s);
-            }
-
-            @Override
-            public void onClose(int i, String s, boolean b) {
-                Log.i("Websocket", "Closed " + s);
-                wsConnectionState = ConnectionState.FAILED;
-            }
-
-            @Override
-            public void onError(Exception e) {
-                Log.i("Websocket", "Error " + e.getMessage());
-            }
-        };
-        mWebSocketClient.connect();
-    }
+//        mWebSocketClient = new WebSocketClient(uri, new Draft_17()) {
+//            @Override
+//            public void onOpen(ServerHandshake serverHandshake) {
+//                Log.i("Websocket", "Opened");
+//                wsConnectionState = ConnectionState.CONNECTED;
+//                mWebSocketClient.send("Hello from " + Build.MANUFACTURER + " " + Build.MODEL);
+//            }
+//
+//            @Override
+//            public void onMessage(String s) {
+//                final String message = s;
+//                Log.i("Websocket", "onMessage "+s);
+//            }
+//
+//            @Override
+//            public void onClose(int i, String s, boolean b) {
+//                Log.i("Websocket", "Closed " + s);
+//                wsConnectionState = ConnectionState.FAILED;
+//            }
+//
+//            @Override
+//            public void onError(Exception e) {
+//                Log.i("Websocket", "Error " + e.getMessage());
+//            }
+//        };
+//        mWebSocketClient.connect();
+//    }
 }

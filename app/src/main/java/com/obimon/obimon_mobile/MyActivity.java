@@ -376,7 +376,17 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
     protected void onDestroy() {
         super.onDestroy();
 
-        Log.i(TAG, "onDestroy==IGNORE");
+        Log.i(TAG, "onDestroy==stop service and exit");
+
+        stopMyTestService();
+
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        finish();
 
     }
 
@@ -394,6 +404,7 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
 
         //setupServiceReceiver();
     }
+
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {

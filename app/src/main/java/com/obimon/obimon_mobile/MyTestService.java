@@ -22,6 +22,7 @@ import android.hardware.usb.UsbEndpoint;
 import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
 import android.hardware.usb.UsbRequest;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.SystemClock;
@@ -158,6 +159,8 @@ public class MyTestService  extends Service {
     public void onCreate() {
         super.onCreate();
 
+        Log.d("MyTestService","On Create =========================================");
+
         myTestService = this;
 
         //ReceiveThread receiveThread = new ReceiveThread();
@@ -169,6 +172,38 @@ public class MyTestService  extends Service {
         if(timeThread==null) {
             timeThread = new TimeThread();
             timeThread.start();
+        }
+
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            mScanCallback = new ScanCallback() {
+                @Override
+                public void onScanResult(int callbackType, ScanResult result) {
+                    //Log.d(TAG, "onScanResult " + result);
+
+                    try {
+                        boolean connectable = true;
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            connectable = result.isConnectable();
+                        }
+
+                        parseScanData(result.getDevice(), result.getRssi(), connectable, result.getScanRecord().getBytes());
+
+                    } catch(Exception e) {
+                        Log.e("SCAN",e.getMessage());
+                    }
+
+                    //super.onScanResult(callbackType, result);
+
+                }
+
+                @Override
+                public void onScanFailed(int errorCode) {
+                    Log.d(TAG, "onScanFailed " + errorCode);
+
+                    //super.onScanFailed(errorCode);
+                }
+            };
         }
 
         //BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -470,28 +505,9 @@ public class MyTestService  extends Service {
 
     }
 
-    private ScanCallback mScanCallback = new ScanCallback() {
-        @Override
-        public void onScanResult(int callbackType, ScanResult result) {
-            //Log.d(TAG, "onScanResult " + result);
+    private ScanCallback mScanCallback;
 
-            try {
-                parseScanData(result);
-            } catch(Exception e) {
-                Log.e("SCAN",e.getMessage());
-            }
 
-            //super.onScanResult(callbackType, result);
-
-        }
-
-        @Override
-        public void onScanFailed(int errorCode) {
-            Log.d(TAG, "onScanFailed " + errorCode);
-
-            //super.onScanFailed(errorCode);
-        }
-    };
 
     void scanLeDevice(final boolean enable) {
         long SCAN_PERIOD = 10000;
@@ -509,32 +525,44 @@ public class MyTestService  extends Service {
             }, SCAN_PERIOD);
 */
 
-            ScanFilter filter = new ScanFilter.Builder().build();
-            List<ScanFilter> filters = new ArrayList<ScanFilter>();
-            filters.add(filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                ScanFilter filter = null;
+                filter = new ScanFilter.Builder().build();
 
-            ScanSettings settings = new ScanSettings.Builder()
-                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                    .build();
+                List<ScanFilter> filters = new ArrayList<ScanFilter>();
+                filters.add(filter);
 
-            //mBluetoothAdapter.getBluetoothLeScanner().startScan(mScanCallback);
-            mBluetoothAdapter.getBluetoothLeScanner().startScan(filters, settings, mScanCallback);
-            //mBluetoothAdapter.startLeScan(mLeScanCallback);
+                ScanSettings settings = new ScanSettings.Builder()
+                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                        .build();
+
+                //mBluetoothAdapter.getBluetoothLeScanner().startScan(mScanCallback);
+                mBluetoothAdapter.getBluetoothLeScanner().startScan(filters, settings, mScanCallback);
+                //mBluetoothAdapter.startLeScan(mLeScanCallback);
+            } else {
+                mBluetoothAdapter.startLeScan(mLeScanCallback);
+            }
 
         } else {
-            mBluetoothAdapter.getBluetoothLeScanner().stopScan(mScanCallback);
-            //mBluetoothAdapter.stopLeScan(mLeScanCallback);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mBluetoothAdapter.getBluetoothLeScanner().stopScan(mScanCallback);
+            } else {
+                mBluetoothAdapter.stopLeScan(mLeScanCallback);
+            }
         }
-    }
+
+
+        }
 
 
 
-    public void parseScanData(ScanResult scanResult) {
+    //public void parseScanData(ScanResult scanResult) {
+    public void parseScanData(BluetoothDevice device, int rssi, boolean connectable, byte[] scanRecord) {
 
         String TAG = "BtData";
 
         // if not Microchip
-        String addr = scanResult.getDevice().getAddress();
+        String addr = device.getAddress();
         if(!addr.startsWith("00:1E:C0"))
             if(!addr.startsWith("00:06:66"))
                 if(!addr.startsWith("04:91:62")) {
@@ -543,12 +571,12 @@ public class MyTestService  extends Service {
                     return;
                 }
 
-        ScanRecord scanRecord = scanResult.getScanRecord();
-        long rxTime = System.currentTimeMillis() -
-                SystemClock.elapsedRealtime() +
-                scanResult.getTimestampNanos() / 1000000;
+        //ScanRecord scanRecord = scanResult.getScanRecord();
+        //long rxTime = System.currentTimeMillis() -
+        //        SystemClock.elapsedRealtime() +
+        //        scanResult.getTimestampNanos() / 1000000;
 
-        BleAdvertisedData badata = BleUtil.parseAdertisedData(scanRecord.getBytes());
+        BleAdvertisedData badata = BleUtil.parseAdertisedData(scanRecord);
 
         //if(device.getAddress().compareTo("00:1E:C0:30:FE:D1")==0) Log.d(TAG,"HHH "+device.getAddress());
 
@@ -558,7 +586,7 @@ public class MyTestService  extends Service {
         ObimonDevice obi=null;
         if(!foundDevices.containsKey(addr)) {
             Log.d(TAG,"New device "+addr);
-            obi = new ObimonDevice(MyTestService.this, scanResult.getDevice());
+            obi = new ObimonDevice(MyTestService.this, device);
             //obi.connected();
             foundDevices.put(addr, obi);
 
@@ -568,19 +596,15 @@ public class MyTestService  extends Service {
             obi = foundDevices.get(addr);
         }
 
-        if(obi.selected && scanResult.isConnectable() == true){
+        obi.connectable = connectable;
+
+        if(obi.selected && connectable == true){
             if(obi.connectionState == ObimonDevice.ConnectionState.IDLE || obi.connectionState == ObimonDevice.ConnectionState.FAILED) {
 
             // if(addr.endsWith("D0")) {
             //    if(addr.endsWith("FE:DD")) {
 
                     //if(addr.endsWith("FE:C3")) {
-
-                if(scanResult.isConnectable() == true) {
-                    Log.d("BBB", "CONNECTABLE "+addr);
-                } else {
-                    Log.d("BBB", "NOT CONNECTABLE "+addr);
-                }
 
                 Log.d("BBB", "Start connect "+addr);
 
@@ -590,15 +614,19 @@ public class MyTestService  extends Service {
                     Thread.sleep(250);
                 } catch (InterruptedException e) {}
 
-                BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(addr);
+                //BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(addr);
+
+                if(obi.mBluetoothGatt != null) obi.mBluetoothGatt.close();
+                obi.mBluetoothGatt = device.connectGatt(this, true, obi.mGattCallback);
+
 
                 if(device == null) {
                     Log.d("BBB", "Device not available "+addr);
                 } else {
-                    if(obi.mBluetoothGatt == null)
-                        obi.mBluetoothGatt = device.connectGatt(this, false, obi.mGattCallback);
-                    else
-                        obi.mBluetoothGatt.connect();
+                    //if(obi.mBluetoothGatt == null)
+                    //obi.mBluetoothGatt = device.connectGatt(this, false, obi.mGattCallback);
+                    //else
+                    //    obi.mBluetoothGatt.connect();
                 }
             }
         }
@@ -613,7 +641,7 @@ public class MyTestService  extends Service {
         }
 
 
-        obi.signal = scanResult.getRssi();
+        obi.signal = rssi;
         obi.lastSeen = System.currentTimeMillis();
 
         int len = badata.manufacturerSpecificBytes.length;
@@ -683,7 +711,7 @@ public class MyTestService  extends Service {
                 long tick = ParseTick(badata.manufacturerSpecificBytes,7);
 
                 Log.d("BBB", "SESSION from ADV "+obi.addr+" tick "+tick);
-                obi.ProcessSyncData(ses, tick, rxTime);
+                obi.ProcessSyncData(ses, tick, System.currentTimeMillis());
 
                 break;
             }
@@ -707,7 +735,7 @@ public class MyTestService  extends Service {
                 obi.bat = bat / 10.0;
                 obi.mem = mem;
 
-                long now = (rxTime + ntpCorr);
+                long now = (System.currentTimeMillis() + ntpCorr);
                 long now_device = (long) (now * 32.768) / 1024;
                 long trimmed = now_device & 0x0000ffff;
                 Log.d(TAG, "" + addr + " " + now_device + " " + trimmed + " " + sync);
@@ -838,7 +866,7 @@ public class MyTestService  extends Service {
 
                 // only add adv data is there is no data from connection
                 if(System.currentTimeMillis() - obi.lastCharacteristics > 1000) {
-                    Log.d(TAG, "GSRDATA==== "+addr+" "+n+" "+gsr+" acc "+acc +" d_rxTime:"+(rxTime-obi.lastGsrTime));
+                    Log.d(TAG, "GSRDATA==== "+addr+" "+n+" "+gsr+" acc "+acc +" d_rxTime:"+(System.currentTimeMillis()-obi.lastGsrTime));
 
                     obi.AddData(System.currentTimeMillis(), gsr, acc);
 
@@ -951,15 +979,16 @@ public class MyTestService  extends Service {
         return gsr;
     }
 
-/*    private BluetoothAdapter.LeScanCallback mLeScanCallback =
+    // Pre LOLLIPOP VERSION of SCAN callback
+    private BluetoothAdapter.LeScanCallback mLeScanCallback =
             new BluetoothAdapter.LeScanCallback() {
                 @Override
                 public void onLeScan(final BluetoothDevice device, int rssi,
                                      byte[] scanRecord) {
 
-                    parseScanData(device, rssi, scanRecord);
+                    parseScanData(device, rssi, true, scanRecord); // connectable = true (<=LOLLIPOP we cannot get this, so we always say connectable)
                 }
-            };*/
+            };
 
 
 
