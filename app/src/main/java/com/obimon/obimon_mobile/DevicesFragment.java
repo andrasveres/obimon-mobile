@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
 import androidx.fragment.app.Fragment;
 import android.util.Log;
@@ -111,6 +112,7 @@ public class DevicesFragment extends Fragment {
                     item.addr = item.obimon.addr;
                     item.build = item.obimon.build;
                     item.connectionState = item.obimon.connectionState;
+                    item.connectable = item.obimon.connectable;
                 }
 
                 // remove deselected items
@@ -239,6 +241,8 @@ public class DevicesFragment extends Fragment {
         double bat=-1;
         long lastSessionSync=0;
         String status;
+        boolean connectable=false;
+
         ObimonDevice.ConnectionState connectionState=ObimonDevice.ConnectionState.IDLE;
     }
 
@@ -367,9 +371,19 @@ public class DevicesFragment extends Fragment {
             mac_value.setText("" + item.addr.substring(9));
 
             TextView connstate = (TextView) convertView.findViewById(R.id.conn);
-            if(item.connectionState == ObimonDevice.ConnectionState.IDLE) connstate.setText("scan");
-            else if(item.connectionState == ObimonDevice.ConnectionState.CONNECTED) connstate.setText("stream");
-            else connstate.setText("...");
+
+
+            if (item.connectionState == ObimonDevice.ConnectionState.IDLE) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+                    connstate.setText("scan mode");
+                } else {
+                    if (item.connectable == false) connstate.setText("not connectable");
+                    else connstate.setText("connectable");
+                }
+            } else {
+                if (item.connectionState == ObimonDevice.ConnectionState.CONNECTED) connstate.setText("connected");
+                else connstate.setText("wait...");
+            }
 
             return convertView;
         }
