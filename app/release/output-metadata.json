@@ -1,19 +1,17 @@
 {
-  "version": 1,
+  "version": 2,
   "artifactType": {
     "type": "APK",
     "kind": "Directory"
   },
   "applicationId": "com.obimon.obimon_mobile",
-  "variantName": "release",
+  "variantName": "processReleaseResources",
   "elements": [
     {
       "type": "SINGLE",
       "filters": [],
-      "properties": [],
-      "versionCode": 26,
-      "versionName": "3.0",
-      "enabled": true,
+      "versionCode": 28,
+      "versionName": "3.2",
       "outputFile": "app-release.apk"
     }
   ]
