@@ -1,5 +1,8 @@
 package com.obimon.obimon_mobile;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
@@ -15,6 +18,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.hardware.usb.UsbConstants;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
@@ -162,6 +168,39 @@ public class MyTestService  extends Service {
         Log.d("MyTestService","On Create =========================================");
 
         myTestService = this;
+
+        ///////// NEW
+        CharSequence name = "Obimon";
+        String description = "service status";
+        int importance = NotificationManager.IMPORTANCE_DEFAULT;
+        NotificationChannel channel = new NotificationChannel("obichannel", name, importance);
+        channel.setDescription(description);
+        // Register the channel with the system; you can't change the importance
+        // or other notification behaviors after this
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
+        notificationManager.createNotificationChannel(channel);
+
+        Intent notificationIntent = new Intent(this, MyActivity.class);
+        PendingIntent pendingIntent =
+                PendingIntent.getActivity(this, 0, notificationIntent, 0);
+
+        Bitmap bm = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher),
+                getResources().getDimensionPixelSize(android.R.dimen.notification_large_icon_width),
+                getResources().getDimensionPixelSize(android.R.dimen.notification_large_icon_height),
+                true);
+
+        Notification notification =
+                new Notification.Builder(this, "obichannel")
+                        .setContentTitle("Obimon is running")
+                        .setContentText("Click here to open app.")
+                        .setSmallIcon(R.drawable.ic_stat_name)
+                        .setContentIntent(pendingIntent)
+                        .setTicker("ccc")
+                        .build();
+
+        // Notification ID cannot be 0.
+        startForeground(1, notification);
+        /////// NEW
 
         //ReceiveThread receiveThread = new ReceiveThread();
         //receiveThread.start();

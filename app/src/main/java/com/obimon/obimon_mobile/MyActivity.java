@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
@@ -82,25 +83,12 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
     }
 
     public void startMyTestService() {
-        Log.i(TAG, "-------------------- startService");
-
-        ShowNotification();
-
-        if(myTestService!=null) {
-            Log.i(TAG, "Service already running, ignoring");
-        }
-
-        Intent i = new Intent(this, MyTestService.class);
-        i.putExtra("foo", "bar");
-
-        startService(i);
-
+        Intent i = new Intent(context, MyTestService.class);
+        context.startService(i);
     }
 
     public void stopMyTestService() {
         Log.i(TAG, "-------------------- stopService");
-
-        HideNotification();
 
         if(myTestService==null) {
             Log.i(TAG, "Service not running, ignoring");
@@ -117,102 +105,9 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
 
 
 
-    private void createNotificationChannel() {
 
-        // Create the NotificationChannel, but only on API 26+ because
-        // the NotificationChannel class is new and not in the support library
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Log.d("NOTCH", "create notification channel");
-
-            CharSequence name = "Obimon";
-            String description = "background service status";
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-            NotificationChannel channel = new NotificationChannel("obichannel", name, importance);
-            channel.setDescription(description);
-            // Register the channel with the system; you can't change the importance
-            // or other notification behaviors after this
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            notificationManager.createNotificationChannel(channel);
-        }
-    }
 
     public final static String STOPACTION = "com.obimon.obimon_mobile.STOPANDEXIT";
-    void ShowNotification() {
-        createNotificationChannel();
-
-        Bitmap bm = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher),
-                getResources().getDimensionPixelSize(android.R.dimen.notification_large_icon_width),
-                getResources().getDimensionPixelSize(android.R.dimen.notification_large_icon_height),
-                true);
-
-
-        Intent intent = new Intent(this, MyActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent, PendingIntent.FLAG_CANCEL_CURRENT);
-
-
-//        Intent snoozeIntent = new Intent(this, MyTestService.class);
-//        snoozeIntent.setAction(STOPACTION);
-//        snoozeIntent.putExtra(EXTRA_NOTIFICATION_ID, 0);
-//        PendingIntent snoozePendingIntent =
-//                PendingIntent.getBroadcast(this, 0, snoozeIntent, 0);
-
-
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "obichannel")
-                .setSmallIcon(R.drawable.notification_icon)
-                .setLargeIcon(bm)
-                .setContentTitle("Obimon is running in the background")
-                .setContentText("Tap here to open app. You can exit the background service from the app menu.")
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setContentIntent(pendingIntent)
-                .setOngoing(true);
-                //.addAction(0, "xxx", snoozePendingIntent);
-
-
-        //Notification note = builder.build();
-
-        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
-
-        // notificationId is a unique int for each notification that you must define
-        int notificationId = 1;
-        notificationManager.notify(notificationId, builder.build());
-
-/*
-
-        Bitmap bm = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher),
-                getResources().getDimensionPixelSize(android.R.dimen.notification_large_icon_width),
-                getResources().getDimensionPixelSize(android.R.dimen.notification_large_icon_height),
-                true);
-        Intent intent = new Intent(this, MyActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent, PendingIntent.FLAG_CANCEL_CURRENT);
-        Notification.Builder builder = new Notification.Builder(getApplicationContext());
-        builder.setContentTitle("Obimon is running");
-        //builder.setContentText("This is the text");
-        //builder.setSubText("Some sub text");
-        //builder.setNumber(101);
-        builder.setContentIntent(pendingIntent);
-        builder.setTicker("Obimon service running");
-        builder.setSmallIcon(R.mipmap.ic_launcher);
-        //builder.setLargeIcon(bm);
-        //builder.setAutoCancel(true);
-        builder.setPriority(Notification.PRIORITY_HIGH);
-        builder.setOngoing(true);
-        Notification notification = builder.build();
-        NotificationManager notificationManger =
-                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManger.notify(1, notification);
-
- */
-    }
-
-
-
-
-
-    void HideNotification() {
-        NotificationManager notificationManger =
-                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManger.cancel(1);
-    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -364,6 +259,11 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
 
     }
 
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        setContentView(R.layout.activity_my);
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -376,6 +276,7 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
     protected void onDestroy() {
         super.onDestroy();
 
+        /*
         Log.i(TAG, "onDestroy==stop service and exit");
 
         stopMyTestService();
@@ -387,7 +288,7 @@ public class MyActivity extends FragmentActivity implements ActionBar.TabListene
         }
 
         finish();
-
+*/
     }
 
     @Override
